@@ -6,7 +6,7 @@
     return;
   }
   var db = window.supabase.createClient(SHOP.supabaseUrl, SHOP.supabaseKey);
-  var parts = [], orders = [], tab = 'parts', q = '';
+  var parts = [], orders = [], tour = [], tourReady = false, tab = 'parts', q = '';
   var CONDITIONS = ['ممتازة', 'جيدة جدا', 'جيدة'];
   var CATEGORIES = ['موتور وفتيس', 'كهرباء وإضاءة', 'صاج وهيكل', 'تكييف وتبريد', 'عفشة وفرامل', 'جنوط وكاوتش', 'صالون وفرش'];
   var BRANDS = ['فولكس فاجن', 'سكودا', 'أودى', 'سيات'];
@@ -53,9 +53,11 @@
     Promise.all([
       db.from('parts').select('*').order('id', { ascending: false }),
       db.from('orders').select('*').order('id', { ascending: false }).limit(200),
+      db.from('tour_photos').select('*').order('id'),
     ]).then(function (res) {
       if (res[0].error || res[1].error) { root.innerHTML = '<div class="empty">تعذر تحميل البيانات، جرب تحديث الصفحة</div>'; return; }
       parts = res[0].data; orders = res[1].data;
+      tourReady = !res[2].error; tour = res[2].data || [];
       render();
     });
   }
@@ -66,12 +68,56 @@
     root.innerHTML = '<div class="tabs">' +
       '<button class="btn ' + (tab === 'parts' ? '' : 'ghost') + '" data-tab="parts">القطع (' + parts.length + ')</button>' +
       '<button class="btn ' + (tab === 'orders' ? '' : 'ghost') + '" data-tab="orders">الطلبات' + (newOrders ? ' <span class="badge">' + newOrders + '</span>' : '') + '</button>' +
+      '<button class="btn ' + (tab === 'tour' ? '' : 'ghost') + '" data-tab="tour">جولة داخل المحل (' + tour.length + ')</button>' +
       '<button class="btn ghost" id="logout">خروج</button></div><div id="body"></div>';
     root.querySelectorAll('[data-tab]').forEach(function (b) {
       b.addEventListener('click', function () { tab = b.getAttribute('data-tab'); render(); });
     });
     document.getElementById('logout').addEventListener('click', function () { db.auth.signOut().then(function () { viewLogin(); }); });
-    if (tab === 'parts') renderParts(); else renderOrders();
+    if (tab === 'parts') renderParts(); else if (tab === 'tour') renderTour(); else renderOrders();
+  }
+
+  // ---------- جولة داخل المحل ----------
+  function renderTour() {
+    var body = document.getElementById('body');
+    if (!tourReady) {
+      body.innerHTML = '<div class="empty">القسم ده محتاج تشغيل ملف 3_tour.sql فى Supabase الأول</div>';
+      return;
+    }
+    body.innerHTML = '<div class="panel"><h2>صور جولة داخل المحل</h2>' +
+      '<p class="meta">الصور دى بتظهر للعملاء فى قسم «جولة داخل المحل». اختار صورة أو أكتر وهتترفع على طول.</p>' +
+      '<label class="btn block" style="cursor:pointer">＋ إضافة صور<input id="tfiles" type="file" accept="image/*" multiple hidden></label>' +
+      '<div class="err" id="terr" style="margin:8px 0"></div>' +
+      '<div class="thumbs big">' + (tour.length ? tour.map(function (t) {
+        return '<div class="thumb"><img src="' + esc(t.url) + '" alt=""><button type="button" data-id="' + t.id + '" title="حذف الصورة">×</button></div>';
+      }).join('') : '<div class="empty" style="width:100%">لا توجد صور حتى الآن</div>') + '</div></div>';
+    document.getElementById('tfiles').addEventListener('change', function (e) {
+      var files = Array.prototype.slice.call(e.target.files), err = document.getElementById('terr');
+      if (!files.length) return;
+      err.textContent = 'جارى رفع ' + files.length + ' صورة...';
+      Promise.all(files.map(function (f) { return uploadOne(f, 'tour/'); })).then(function (urls) {
+        return db.from('tour_photos').insert(urls.map(function (u) { return { url: u }; })).select();
+      }).then(function (res) {
+        if (res.error) throw res.error;
+        tour = tour.concat(res.data); render();
+      }).catch(function (error) {
+        err.textContent = 'تعذر رفع الصور: ' + (error && error.message ? error.message : 'خطأ غير معروف');
+      });
+    });
+    body.querySelectorAll('.thumb button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var t = tour.filter(function (x) { return String(x.id) === b.getAttribute('data-id'); })[0];
+        if (!confirm('حذف الصورة دى من جولة المحل؟')) return;
+        b.disabled = true;
+        db.from('tour_photos').delete().eq('id', t.id).then(function (res) {
+          if (res.error) { fail('تعذر الحذف', res.error); b.disabled = false; return; }
+          var path = storagePath(t.url);
+          if (path) db.storage.from('parts').remove([path]);
+          tour = tour.filter(function (x) { return x.id !== t.id; });
+          render();
+        });
+      });
+    });
   }
 
   // ---------- القطع ----------
@@ -144,9 +190,9 @@
       img.src = url;
     });
   }
-  function uploadOne(file) {
+  function uploadOne(file, prefix) {
     return shrink(file).then(function (blob) {
-      var path = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+      var path = (prefix || '') + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
       return db.storage.from('parts').upload(path, blob, { contentType: 'image/jpeg' }).then(function (res) {
         if (res.error) throw res.error;
         return db.storage.from('parts').getPublicUrl(path).data.publicUrl;
@@ -199,7 +245,7 @@
       if (f.price.value === '' || isNaN(row.price) || row.price < 0) { err.textContent = 'اكتب السعر بالأرقام'; return; }
       if (row.year_from && row.year_to && row.year_from > row.year_to) { err.textContent = 'سنة البداية لازم تكون قبل سنة النهاية'; return; }
       btn.disabled = true; err.textContent = 'جارى الحفظ ورفع الصور...';
-      Promise.all(Array.prototype.map.call(f.files.files, uploadOne)).then(function (urls) {
+      Promise.all(Array.prototype.map.call(f.files.files, function (file) { return uploadOne(file, ''); })).then(function (urls) {
         row.images = imgs.concat(urls);
         var query = p ? db.from('parts').update(row).eq('id', p.id) : db.from('parts').insert(row);
         return query.select().single();

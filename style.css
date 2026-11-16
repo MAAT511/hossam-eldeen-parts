@@ -149,3 +149,4 @@ html[dir="ltr"] .drawer { transform: translateX(-105%); }
 .mitem:hover { background: var(--bg); }
 .mitem .qi { background: var(--accent); color: var(--accent-ink); width: 38px; height: 38px; }
 #sec-contact, #sec-offers, #sec-tour { scroll-margin-top: 76px; }
+.thumbs.big .thumb { width: 110px; height: 140px; }

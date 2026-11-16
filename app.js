@@ -344,7 +344,11 @@
         };
       });
       document.querySelector('.demo-note').style.display = 'none';
-      start();
+      // صور «جولة داخل المحل» من لوحة الإدارة؛ لو الجدول لسه مش موجود تفضل الصور اللى فى config.js
+      return db.from('tour_photos').select('url').order('id').then(function (t) {
+        if (!t.error) SHOP.gallery = t.data.map(function (x) { return x.url; });
+        start();
+      });
     });
   } else start();
 })();
