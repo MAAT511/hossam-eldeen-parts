@@ -92,9 +92,11 @@
       return '<div class="panel" data-inq="' + i.id + '"><div class="arow"><div class="thumb">' + (i.photo_url ? '<a target="_blank" rel="noopener" href="' + esc(i.photo_url) + '"><img src="' + esc(i.photo_url) + '" alt=""></a>' : '🔩') + '</div>' +
         '<div class="grow"><strong>' + esc(i.part_name || 'صورة من جولة داخل المحل') + '</strong> ' +
         '<span class="tag' + (i.answer ? '' : ' wait') + '">' + (i.answer ? 'تم الرد' : 'جديد') + '</span>' +
+        (i.order_id ? ' <span class="tag">اتطلبت — طلب رقم ' + i.order_id + '</span>' : '') +
         (i.question ? '<div>' + esc(i.question) + '</div>' : '') +
         '<div class="meta">' + 'واتساب العميل: <a href="tel:' + esc(i.phone) + '">' + esc(i.phone) + '</a> · ' + new Date(i.created_at).toLocaleString('ar-EG') + '</div></div></div>' +
-        '<label class="field" style="margin-top:10px"><span>الرد والسعر</span><textarea rows="2" data-answer>' + esc(i.answer) + '</textarea></label>' +
+        '<label class="field" style="margin-top:10px"><span>الرد</span><textarea rows="2" data-answer>' + esc(i.answer) + '</textarea></label>' +
+        '<label class="field"><span>آخر سعر متفق عليه بالجنيه (العميل يقدر يتمم الشراء بيه من الموقع)</span><input type="number" inputmode="decimal" min="0" data-price value="' + esc(i.price == null ? '' : i.price) + '"' + (i.order_id ? ' disabled' : '') + '></label>' +
         '<div class="actions"><button class="btn small" data-act="save">حفظ الرد</button>' +
         '<button class="btn small wa" data-act="wa">ابعت الرد واتساب</button>' +
         '<button class="btn small ghost" data-act="del">حذف</button></div></div>';
@@ -102,12 +104,22 @@
     body.querySelectorAll('[data-inq]').forEach(function (card) {
       var i = inquiries.filter(function (x) { return String(x.id) === card.getAttribute('data-inq'); })[0];
       var ta = card.querySelector('[data-answer]');
+      var pi = card.querySelector('[data-price]');
+      // الرد المكتوب، ولو الأدمن كتب سعر بس يتكوّن الرد منه تلقائى
+      function readForm() {
+        var price = pi.value === '' ? null : Number(pi.value);
+        if (price != null && (isNaN(price) || price < 0)) { alert('اكتب السعر بالأرقام'); return null; }
+        var answer = ta.value.trim() || (price != null ? 'السعر ' + money(price) : '');
+        if (!answer) { alert('اكتب الرد أو السعر الأول'); return null; }
+        return { answer: answer, price: price };
+      }
       function save(then) {
-        var answer = ta.value.trim();
-        if (!answer) { alert('اكتب الرد الأول'); return; }
-        db.from('inquiries').update({ answer: answer, answered_at: new Date().toISOString() }).eq('id', i.id).then(function (res) {
+        var d = readForm();
+        if (!d) return;
+        var answer = d.answer;
+        db.from('inquiries').update({ answer: answer, price: d.price, answered_at: new Date().toISOString() }).eq('id', i.id).then(function (res) {
           if (res.error) { fail('تعذر حفظ الرد', res.error); return; }
-          i.answer = answer;
+          i.answer = answer; i.price = d.price;
           if (then) then(answer);
           render();
         });
@@ -115,9 +127,11 @@
       card.querySelector('[data-act=save]').addEventListener('click', function () { save(); });
       card.querySelector('[data-act=wa]').addEventListener('click', function () {
         // فتح الواتساب لازم يحصل مع الضغطة نفسها، فالنافذة تتفتح الأول وبعدين الرد يتحفظ
-        var answer = ta.value.trim();
-        if (!answer) { alert('اكتب الرد الأول'); return; }
-        var text = 'أهلا بيك، بخصوص استعلامك عن: ' + (i.part_name || i.question || 'صورة من جولة المحل') + '\n' + answer + '\n— ' + SHOP.name;
+        var d = readForm();
+        if (!d) return;
+        var text = 'أهلا بيك، بخصوص استعلامك عن: ' + (i.part_name || i.question || 'صورة من جولة المحل') + '\n' + d.answer +
+          (d.price != null && d.answer.indexOf(money(d.price)) < 0 ? '\nآخر سعر: ' + money(d.price) : '') +
+          (d.price != null ? '\nتقدر تتمم الشراء بالسعر ده من «استعلاماتى» فى الموقع.' : '') + '\n— ' + SHOP.name;
         window.open('https://wa.me/2' + encodeURIComponent(i.phone) + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
         save();
       });
@@ -326,7 +340,10 @@
         '<div>' + esc(o.customer_name) + ' — <a href="tel:' + esc(o.phone) + '">' + esc(o.phone) + '</a> · <a target="_blank" rel="noopener" href="' + wa + '">واتساب</a></div>' +
         '<div class="meta">' + esc(o.city) + ' — ' + esc(o.address) + '</div>' +
         (o.notes ? '<div class="meta">ملاحظات: ' + esc(o.notes) + '</div>' : '') +
-        '<ul>' + (o.items || []).map(function (it) { return '<li>' + esc(it.name) + ' (' + esc(it.brand) + ' ' + esc(it.model) + ') كود P' + esc(it.id) + ' — ' + money(it.price) + '</li>'; }).join('') + '</ul>' +
+        '<ul>' + (o.items || []).map(function (it) {
+          if (it.inquiry_id) return '<li>' + esc(it.name) + (it.question ? ' — ' + esc(it.question) : '') + ' (سعر متفق عليه، استعلام رقم ' + esc(it.inquiry_id) + ') — ' + money(it.price) + '</li>';
+          return '<li>' + esc(it.name) + ' (' + esc(it.brand) + ' ' + esc(it.model) + ') كود P' + esc(it.id) + ' — ' + money(it.price) + '</li>';
+        }).join('') + '</ul>' +
         '<div class="row"><span>' + esc(PAY[o.pay_method] || o.pay_method) + '</span><span class="total">' + money(o.total) + '</span></div>' +
         '<label class="field"><span>حالة الطلب</span><select data-order="' + o.id + '">' + Object.keys(STATUS).map(function (k) {
           return '<option value="' + k + '"' + (k === o.status ? ' selected' : '') + '>' + STATUS[k] + '</option>';

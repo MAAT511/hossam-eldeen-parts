@@ -2,7 +2,7 @@
   'use strict';
   var SHOP = window.SHOP, PARTS = window.PARTS;
   var app = document.getElementById('app');
-  var CART_KEY = 'parts_cart_v1';
+  var CART_KEY = 'parts_cart_v1', QCART_KEY = 'inq_cart_v1';
   // لو قاعدة البيانات مربوطة فى config.js القطع تتقرأ منها، وإلا تظهر القطع التجريبية
   var db = (SHOP.supabaseUrl && SHOP.supabaseKey && window.supabase) ? window.supabase.createClient(SHOP.supabaseUrl, SHOP.supabaseKey) : null;
   var filters = { q: '', brand: '', model: '', year: '', category: '', condition: '', hideSold: false };
@@ -63,15 +63,25 @@
     var ids = [];
     try { ids = JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch (e) { ids = []; }
     // القطعة المباعة أو المحذوفة تخرج من السلة
-    return ids.filter(function (id) { var p = byId(id); return p && !p.sold; });
+    return ids.filter(function (id) { return !!cartItem(id); });
   }
+  // عنصر السلة: قطعة بسعرها المعروض، أو استعلام بسعر متفق عليه مع المحل (مفتاحه يبدأ بـ Q:)
+  function cartItem(key) {
+    if (String(key).indexOf('Q:') === 0) {
+      var q = lsGet(QCART_KEY, {})[key.slice(2)];
+      return q ? { key: key, name: q.name, sub: 'سعر متفق عليه مع المحل', price: Number(q.price), token: key.slice(2) } : null;
+    }
+    var p = byId(key);
+    return p && !p.sold ? { key: key, name: p.name, sub: p.brand + ' ' + p.model + ' · ' + p.id, price: p.price, dbId: p.dbId } : null;
+  }
+  function cartItems() { return getCart().map(cartItem); }
   function setCart(ids) {
     try { localStorage.setItem(CART_KEY, JSON.stringify(ids)); } catch (e) { /* تجاهل */ }
     document.getElementById('cartCount').textContent = ids.length;
   }
   function addToCart(id) { var c = getCart(); if (c.indexOf(id) < 0) c.push(id); setCart(c); }
   function removeFromCart(id) { setCart(getCart().filter(function (x) { return x !== id; })); }
-  function cartTotal() { return getCart().reduce(function (s, id) { return s + byId(id).price; }, 0); }
+  function cartTotal() { return cartItems().reduce(function (s, it) { return s + it.price; }, 0); }
 
   // ---------- الكتالوج ----------
   function options(list, selected, first) {
@@ -178,11 +188,10 @@
 
   // ---------- السلة ----------
   function cartRows(withRemove) {
-    return getCart().map(function (id) {
-      var p = byId(id);
-      return '<div class="row"><div><strong>' + esc(p.name) + '</strong><div class="meta">' + esc(p.brand) + ' ' + esc(p.model) + ' · ' + esc(p.id) + '</div></div>' +
-        '<div style="text-align:left"><div class="price">' + money(p.price) + '</div>' +
-        (withRemove ? '<button class="btn ghost small" data-remove="' + esc(p.id) + '">حذف</button>' : '') + '</div></div>';
+    return cartItems().map(function (it) {
+      return '<div class="row"><div><strong>' + esc(it.name) + '</strong><div class="meta">' + esc(it.sub) + '</div></div>' +
+        '<div style="text-align:left"><div class="price">' + money(it.price) + '</div>' +
+        (withRemove ? '<button class="btn ghost small" data-remove="' + esc(it.key) + '">حذف</button>' : '') + '</div></div>';
     }).join('');
   }
   function viewCart() {
@@ -205,7 +214,26 @@
     transfer: 'تحويل إنستاباى',
     pickup: 'الاستلام والدفع فى المحل',
   };
+  // تحديث أسعار الاستعلامات اللى فى السلة من السيرفر (المحل ممكن يكون عدّل السعر بعد التفاوض)
+  function syncInquiryPrices(list) {
+    var map = lsGet(QCART_KEY, {});
+    list.forEach(function (i) {
+      if (!map[i.token]) return;
+      if (i.price == null || i.ordered) delete map[i.token]; else map[i.token].price = Number(i.price);
+    });
+    lsSet(QCART_KEY, map);
+  }
   function viewCheckout() {
+    var tokens = cartItems().filter(function (it) { return it.token; }).map(function (it) { return it.token; });
+    if (db && tokens.length && !viewCheckout.synced) {
+      app.innerHTML = '<div class="empty">جارى التحميل...</div>';
+      db.rpc('my_inquiries', { p_tokens: tokens }).then(function (res) {
+        if (!res.error) syncInquiryPrices(res.data);
+        viewCheckout.synced = true; viewCheckout(); viewCheckout.synced = false;
+        setCart(getCart());
+      });
+      return;
+    }
     if (!getCart().length) { location.hash = '#/cart'; return; }
     app.innerHTML = '<a class="back" href="#/cart">→ رجوع للسلة</a><h2>إتمام الطلب</h2>' +
       '<div class="panel">' + cartRows(false) + '<div class="row total"><span>الإجمالى</span><span>' + money(cartTotal()) + '</span></div></div>' +
@@ -230,17 +258,21 @@
       if (!db) { viewDone(d, 'T' + Date.now().toString().slice(-7)); return; }
       var btn = f.querySelector('button[type=submit]');
       btn.disabled = true; err.textContent = 'جارى تسجيل الطلب...';
-      db.rpc('place_order', {
+      var items = cartItems();
+      var args = {
         p_name: d.name, p_phone: d.phone, p_city: d.city, p_address: d.address, p_notes: d.notes, p_pay: d.pay,
-        p_part_ids: getCart().map(function (id) { return byId(id).dbId; }),
-      }).then(function (res) {
+        p_part_ids: items.filter(function (it) { return !it.token; }).map(function (it) { return it.dbId; }),
+      };
+      var tokens = items.filter(function (it) { return it.token; }).map(function (it) { return it.token; });
+      if (tokens.length) args.p_inquiry_tokens = tokens;
+      db.rpc('place_order', args).then(function (res) {
         if (res.error) { btn.disabled = false; err.textContent = 'تعذر تسجيل الطلب: ' + res.error.message; return; }
         viewDone(d, String(res.data));
       });
     });
   }
   function viewDone(d, no) {
-    var lines = getCart().map(function (id) { var p = byId(id); return '- ' + p.name + ' (' + p.brand + ' ' + p.model + ') كود ' + p.id + ' — ' + money(p.price); });
+    var lines = cartItems().map(function (it) { return '- ' + it.name + ' (' + it.sub + ') — ' + money(it.price); });
     var msg = 'طلب جديد رقم ' + no + '\n' + lines.join('\n') + '\nالإجمالى: ' + money(cartTotal()) +
       '\n\nالاسم: ' + d.name + '\nالموبايل: ' + d.phone + '\nالمحافظة: ' + d.city + '\nالعنوان: ' + d.address +
       '\nطريقة الدفع: ' + PAY[d.pay] + (d.notes ? '\nملاحظات: ' + d.notes : '');
@@ -342,6 +374,9 @@
       if (res.error) { app.innerHTML = head + '<div class="empty">تعذر تحميل الاستعلامات، جرب تحديث الصفحة</div>'; return; }
       lsSet(SEEN_KEY, res.data.filter(function (i) { return i.answer; }).map(function (i) { return i.token; }));
       setReplyBadge(0);
+      syncInquiryPrices(res.data);
+      setCart(getCart());
+      var inCart = getCart();
       app.innerHTML = head + '<p class="meta" style="margin-top:-4px">الاستعلامات دى محفوظة على الموبايل والمتصفح ده فقط</p>' +
         (res.data.length ? res.data.map(function (i) {
           var about = i.part_name || 'صورة من جولة داخل المحل';
@@ -350,9 +385,29 @@
             '<div class="grow"><strong>' + esc(about) + '</strong>' +
             (i.question ? '<div>' + esc(i.question) + '</div>' : '') +
             '<div class="meta">' + new Date(i.created_at).toLocaleDateString('ar-EG') + '</div></div></div>' +
-            (i.answer ? '<div class="answer"><strong>رد المحل</strong><div>' + esc(i.answer) + '</div></div><div class="stack">' + waButtons(nego, 'تفاوض على واتساب') + '</div>'
+            (i.answer ? '<div class="answer"><strong>رد المحل</strong><div>' + esc(i.answer) + '</div>' +
+              (i.price != null ? '<div class="price" style="margin-top:6px">آخر سعر متفق عليه: ' + money(i.price) + '</div>' : '') + '</div>' +
+              '<div class="stack">' + (i.ordered ? '<span class="tag">تم طلب القطعة دى</span>'
+                : waButtons(nego, 'تفاوض على واتساب') +
+                  (i.price != null && Number(i.price) > 0
+                    ? (inCart.indexOf('Q:' + i.token) >= 0 ? '<a class="btn block" href="#/cart">القطعة فى السلة — اذهب للسلة</a>'
+                      : '<button type="button" class="btn block" data-buy="' + esc(i.token) + '">إتمام الشراء بسعر ' + money(i.price) + ' 🛒</button>')
+                    : '')) + '</div>'
               : '<span class="tag wait">فى انتظار رد المحل</span>') + '</div>';
         }).join('') : '<div class="empty">لا توجد استعلامات</div>');
+      app.querySelectorAll('[data-buy]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var i = res.data.filter(function (x) { return x.token === b.getAttribute('data-buy'); })[0];
+          var map = lsGet(QCART_KEY, {});
+          map[i.token] = { name: (i.part_name || 'قطعة من صور المحل') + (i.question ? ' — ' + i.question : ''), price: Number(i.price) };
+          lsSet(QCART_KEY, map);
+          // لو نفس القطعة موجودة فى السلة بسعرها المعروض تتشال، ويفضل السعر المتفق عليه
+          var cart = getCart().filter(function (k) { return k !== 'P' + i.part_id && k !== 'Q:' + i.token; });
+          cart.push('Q:' + i.token);
+          setCart(cart);
+          location.hash = '#/cart';
+        });
+      });
     });
   }
 
