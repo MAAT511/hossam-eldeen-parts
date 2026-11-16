@@ -14,8 +14,8 @@ window.SHOP = {
   facebook: 'https://www.facebook.com/profile.php?id=61552677182094',
   // رابط موقع المحل على خرائط جوجل
   mapLink: 'https://maps.app.goo.gl/NLEwaxkTtH2L5Z95A',
-  // اسم المكان زى ما هو مسجل على خرائط جوجل (للخريطة اللى جوه الموقع)
-  mapQuery: 'Hossam El-deen, 44 Ammar Ibn Yasser, Berket an Nasr, Al Salam First, Cairo Governorate 4642411, Egypt',
+  // اسم المكان زى ما هو مسجل على خرائط جوجل (لو اتكتب تظهر خريطة جوه الموقع، ولو فاضى تختفى)
+  mapQuery: '',
   // مواعيد العمل (سيبها فاضية لو مش عاوز تظهر)
   hours: 'من الاثنين إلى السبت، من 10 صباحا إلى 11 مساء',
   // رقم التحويل إنستاباى (لو فاضى العميل ياخده من الواتساب)

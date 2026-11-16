@@ -40,7 +40,7 @@
   }
   // قسم العنوان والخريطة وبيانات التواصل
   function contactHtml() {
-    return '<section class="contact"><h2>زورنا وتواصل معنا</h2><div class="contact-grid">' +
+    return '<section class="contact"><h2>زورنا وتواصل معنا</h2><div class="contact-grid' + (SHOP.mapQuery ? '' : ' no-map') + '">' +
       (SHOP.mapQuery ? '<div class="map"><iframe title="موقع المحل على الخريطة" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=' + encodeURIComponent(SHOP.mapQuery) + '&z=16&hl=ar&output=embed"></iframe></div>' : '') +
       '<div class="info">' +
       '<div class="irow"><span class="qi q-map">' + ic('pin') + '</span><div><strong>العنوان</strong><div>' + esc(SHOP.address) + '</div></div></div>' +

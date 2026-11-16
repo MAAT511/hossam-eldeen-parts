@@ -133,3 +133,6 @@ footer a { color: var(--accent); }
   .filters { grid-template-columns: repeat(5, 1fr); }
   .detail { grid-template-columns: 1fr 1fr; }
 }
+.contact-grid.no-map { grid-template-columns: 1fr; }
+.contact-grid.no-map .info { padding: 16px; }
+@media (min-width: 720px) { .contact-grid.no-map .info { grid-template-columns: 1fr 1fr; padding: 20px; } .contact-grid.no-map .cta { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; } }
