@@ -48,8 +48,6 @@
       '<div class="irow"><span class="qi q-call">' + ic('phone') + '</span><div><strong>التليفونات</strong>' + SHOP.phones.map(function (p) {
         return '<div>' + esc(p.label) + ': <a href="tel:' + esc(p.number) + '"><bdi dir="ltr">' + esc(p.number) + '</bdi></a></div>';
       }).join('') + '</div></div>' +
-      '<div class="cta"><a class="btn b-map"' + ext(SHOP.mapLink) + '>' + ic('pin') + ' الاتجاهات على خرائط جوجل</a>' +
-      '<a class="btn b-fb"' + ext(SHOP.facebook) + '>' + ic('fb') + ' صفحتنا على فيسبوك</a></div>' +
       '</div></div></section>';
   }
   // زر واتساب لكل رقم من أرقام المحل
