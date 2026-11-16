@@ -31,7 +31,7 @@
   function ext(href) { return ' target="_blank" rel="noopener" href="' + esc(href) + '"'; }
   // أزرار الوصول السريع تحت الكفر
   function quickHtml() {
-    return '<nav class="quick">' +
+    return '<nav class="quick" id="sec-contact">' +
       '<a class="q q-map"' + ext(SHOP.mapLink) + '><span class="qi">' + ic('pin') + '</span><span><strong>موقع المحل</strong><small>افتح الخريطة</small></span></a>' +
       '<a class="q q-fb"' + ext(SHOP.facebook) + '><span class="qi">' + ic('fb') + '</span><span><strong>صفحة فيسبوك</strong><small>تابع الجديد</small></span></a>' +
       '<a class="q q-wa"' + ext('https://wa.me/' + SHOP.whatsapp[0]) + '><span class="qi">' + ic('wa') + '</span><span><strong>واتساب</strong><small>راسلنا الآن</small></span></a>' +
@@ -115,7 +115,7 @@
     var models = PARTS.filter(function (p) { return !filters.brand || p.brand === filters.brand; }).map(function (p) { return p.model; });
     app.innerHTML =
       '<section class="hero' + (SHOP.cover ? ' has-cover" style="background-image:linear-gradient(to top, rgba(12,18,26,.92) 0%, rgba(12,18,26,.35) 55%, rgba(12,18,26,.15) 100%), url(\'' + esc(encodeURI(SHOP.cover)) + '\')' : '') + '"><h1>' + esc(SHOP.name) + '</h1><p>' + esc(SHOP.tagline) + '</p></section>' +
-      quickHtml() + '<div class="sec-head offers"><h2>عروض حسام الدين</h2></div>' +
+      quickHtml() + '<div class="sec-head offers" id="sec-offers"><h2>عروض حسام الدين</h2></div>' +
       '<section class="filters">' +
       '<input class="wide" id="f-q" type="search" placeholder="ابحث باسم القطعة أو الموديل" value="' + esc(filters.q) + '">' +
       '<details class="wide"' + (filters.brand || filters.model || filters.year || filters.category || filters.condition || filters.hideSold ? ' open' : '') + '><summary>فلترة بالماركة والموديل والسنة</summary><div class="fgrid">' +
@@ -126,7 +126,7 @@
       '<select id="f-condition">' + options(uniq(PARTS.map(function (p) { return p.condition; })), filters.condition, 'الحالة') + '</select>' +
       '<label class="check wide"><input id="f-hideSold" type="checkbox"' + (filters.hideSold ? ' checked' : '') + '> إخفاء القطع المباعة</label>' +
       '</div></details></section><div class="count" id="count"></div><div id="list"></div>' +
-      (SHOP.gallery && SHOP.gallery.length ? '<section class="tour"><div class="sec-head"><h2>جولة داخل المحل</h2><a href="#/gallery">عرض كل الصور ←</a></div>' +
+      (SHOP.gallery && SHOP.gallery.length ? '<section class="tour" id="sec-tour"><div class="sec-head"><h2>جولة داخل المحل</h2><a href="#/gallery">عرض كل الصور ←</a></div>' +
         '<div class="strip">' + SHOP.gallery.map(function (s) {
           return '<a href="#/gallery"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></a>';
         }).join('') + '</div></section>' : '') +
@@ -278,7 +278,43 @@
     else if (h === 'checkout') viewCheckout();
     else if (h === 'gallery') viewGallery();
     else viewHome();
+    if (pendingSection) {
+      var el = document.getElementById(pendingSection);
+      pendingSection = null;
+      if (el) el.scrollIntoView();
+    }
   }
+
+  // ---------- القائمة الجانبية ----------
+  var pendingSection = null;
+  var MENU = [
+    { id: 'sec-contact', label: 'التواصل', icon: 'phone' },
+    { id: 'sec-offers', label: 'عروض حسام الدين', icon: 'tag' },
+    { id: 'sec-tour', label: 'جولة داخل المحل', icon: 'photo' },
+  ];
+  ICONS.tag = 'M21.400 11.600l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7c0 .500.200 1 .600 1.400l9 9a2 2 0 0 0 2.800 0l7-7a2 2 0 0 0 0-2.800zM6.500 8A1.500 1.500 0 1 1 6.500 5a1.500 1.500 0 0 1 0 3z';
+  ICONS.photo = 'M21 5H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM8 8.500a1.500 1.500 0 1 1 0 3 1.500 1.500 0 0 1 0-3zM4 17l4.500-4.500 2.500 2.500 4-5 5 7H4z';
+  function closeMenu() { document.body.classList.remove('menu-open'); }
+  function goSection(id) {
+    closeMenu();
+    var onHome = !location.hash.replace(/^#\/?/, '');
+    if (onHome) { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
+    else { pendingSection = id; location.hash = '#/'; }
+  }
+  (function buildMenu() {
+    var d = document.createElement('div');
+    d.innerHTML = '<div class="backdrop"></div><aside class="drawer" aria-label="القائمة">' +
+      '<div class="drawer-head"><strong>' + esc(SHOP.name) + '</strong><button type="button" class="drawer-close" aria-label="إغلاق القائمة">✕</button></div>' +
+      MENU.map(function (m) { return '<button type="button" class="mitem" data-go="' + m.id + '"><span class="qi">' + ic(m.icon) + '</span>' + m.label + '</button>'; }).join('') +
+      '</aside>';
+    while (d.firstChild) document.body.appendChild(d.firstChild);
+    document.getElementById('menuBtn').addEventListener('click', function () { document.body.classList.add('menu-open'); });
+    document.querySelector('.backdrop').addEventListener('click', closeMenu);
+    document.querySelector('.drawer-close').addEventListener('click', closeMenu);
+    document.querySelectorAll('.mitem').forEach(function (b) {
+      b.addEventListener('click', function () { goSection(b.getAttribute('data-go')); });
+    });
+  })();
 
   document.title = SHOP.name;
   document.getElementById('shopName').textContent = SHOP.name;
