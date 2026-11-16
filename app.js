@@ -20,7 +20,13 @@
     var src = p.images && p.images[i || 0];
     return '<div class="pic">' + (src ? '<img loading="lazy" src="' + esc(src) + '" alt="' + esc(p.name) + '">' : esc(p.icon || '🔩')) + '</div>';
   }
-  function waLink(text) { return 'https://wa.me/' + SHOP.whatsapp + '?text=' + encodeURIComponent(text); }
+  // زر واتساب لكل رقم من أرقام المحل
+  function waButtons(text, label) {
+    return SHOP.whatsapp.map(function (n) {
+      return '<a class="btn wa block" target="_blank" rel="noopener" href="' + esc('https://wa.me/' + n + '?text=' + encodeURIComponent(text)) + '">' +
+        label + ' <bdi dir="ltr">0' + esc(n.slice(2)) + '</bdi></a>';
+    }).join('');
+  }
 
   // ---------- السلة ----------
   function getCart() {
@@ -129,7 +135,7 @@
       (p.sold ? '<button class="btn block" disabled>القطعة اتباعت</button>'
         : inCart ? '<a class="btn block" href="#/cart">القطعة فى السلة — اذهب للسلة</a>'
           : '<button class="btn block" id="add">أضف إلى السلة 🛒</button>') +
-      '<a class="btn wa block" target="_blank" rel="noopener" href="' + esc(waLink(ask)) + '">اسأل عنها على واتساب</a>' +
+      waButtons(ask, 'اسأل عنها على واتساب') +
       '</div></div></div>';
     var add = document.getElementById('add');
     if (add) add.addEventListener('click', function () { addToCart(p.id); viewPart(p.id); });
@@ -208,8 +214,8 @@
     app.innerHTML = '<div class="panel" style="text-align:center"><div style="font-size:48px">✅</div>' +
       '<h2>طلبك جاهز للإرسال</h2><p>رقم الطلب: <strong>' + no + '</strong> — الإجمالى: <strong>' + total + '</strong></p>' +
       '<p class="meta">اضغط الزر عشان تبعت الطلب للمحل على الواتساب، والمحل هيأكد معاك التوفر والشحن.</p>' +
-      '<a class="btn wa block" target="_blank" rel="noopener" href="' + esc(waLink(msg)) + '">إرسال الطلب على واتساب</a>' +
-      '<br><a class="btn ghost block" href="#/">رجوع للقطع</a></div>';
+      '<div class="stack">' + waButtons(msg, 'إرسال الطلب على واتساب') +
+      '<a class="btn ghost block" href="#/">رجوع للقطع</a></div></div>';
   }
 
   // ---------- التنقل ----------
@@ -228,7 +234,9 @@
     '<div>📍 ' + esc(SHOP.address) + ' — <a target="_blank" rel="noopener" href="' + esc(SHOP.mapLink) + '">الموقع على الخريطة</a></div>' +
     SHOP.phones.map(function (p) { return '<div>📞 ' + esc(p.label) + ': <a href="tel:' + esc(p.number) + '">' + esc(p.number) + '</a></div>'; }).join('') +
     (SHOP.hours ? '<div>🕙 ' + esc(SHOP.hours) + '</div>' : '') +
-    '<div><a target="_blank" rel="noopener" href="' + esc(SHOP.facebook) + '">صفحتنا على فيسبوك</a> · <a target="_blank" rel="noopener" href="https://wa.me/' + esc(SHOP.whatsapp) + '">واتساب</a></div></div>';
+    '<div><a target="_blank" rel="noopener" href="' + esc(SHOP.facebook) + '">صفحتنا على فيسبوك</a>' + SHOP.whatsapp.map(function (n) {
+      return ' · <a target="_blank" rel="noopener" href="https://wa.me/' + esc(n) + '">واتساب <bdi dir="ltr">0' + esc(n.slice(2)) + '</bdi></a>';
+    }).join('') + '</div></div>';
   function start() {
     setCart(getCart());
     window.addEventListener('hashchange', route);
