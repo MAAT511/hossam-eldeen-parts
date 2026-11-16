@@ -132,11 +132,7 @@
         '<div class="strip">' + SHOP.gallery.map(function (s) {
           return '<a href="#/gallery"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></a>';
         }).join('') + '</div></section>' : '') +
-      contactHtml() +
-      '<section class="panel fb"><h2>آخر منشورات المحل على فيسبوك</h2>' +
-      '<iframe title="صفحة المحل على فيسبوك" loading="lazy" scrolling="no" frameborder="0" allow="encrypted-media; picture-in-picture; web-share" src="https://www.facebook.com/plugins/page.php?href=' +
-      encodeURIComponent(SHOP.facebook) + '&tabs=timeline&width=500&height=700&small_header=true&adapt_container_width=true&hide_cover=false&show_facepile=false"></iframe>' +
-      '<a class="btn ghost block" target="_blank" rel="noopener" href="' + esc(SHOP.facebook) + '">افتح الصفحة على فيسبوك</a></section>';
+      contactHtml();
     renderList();
     document.getElementById('f-q').addEventListener('input', function (e) { filters.q = e.target.value; renderList(); });
     ['brand', 'model', 'year', 'category', 'condition'].forEach(function (k) {
