@@ -148,5 +148,6 @@ html[dir="ltr"] .drawer { transform: translateX(-105%); }
 .mitem { display: flex; align-items: center; gap: 12px; background: none; border: 0; font: inherit; font-weight: 700; font-size: 16px; color: var(--ink); padding: 10px 16px; cursor: pointer; text-align: start; }
 .mitem:hover { background: var(--bg); }
 .mitem .qi { background: var(--accent); color: var(--accent-ink); width: 38px; height: 38px; }
-#sec-contact, #sec-offers, #sec-tour { scroll-margin-top: 76px; }
+#sec-contact, #sec-search, #sec-offers, #sec-tour { scroll-margin-top: 76px; }
 .thumbs.big .thumb { width: 110px; height: 140px; }
+.sec-head.offers { margin-top: 18px; }

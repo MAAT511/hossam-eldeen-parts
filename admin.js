@@ -66,7 +66,7 @@
   function render() {
     var newOrders = orders.filter(function (o) { return o.status === 'new'; }).length;
     root.innerHTML = '<div class="tabs">' +
-      '<button class="btn ' + (tab === 'parts' ? '' : 'ghost') + '" data-tab="parts">القطع (' + parts.length + ')</button>' +
+      '<button class="btn ' + (tab === 'parts' ? '' : 'ghost') + '" data-tab="parts">عروض حسام الدين (' + parts.length + ')</button>' +
       '<button class="btn ' + (tab === 'orders' ? '' : 'ghost') + '" data-tab="orders">الطلبات' + (newOrders ? ' <span class="badge">' + newOrders + '</span>' : '') + '</button>' +
       '<button class="btn ' + (tab === 'tour' ? '' : 'ghost') + '" data-tab="tour">جولة داخل المحل (' + tour.length + ')</button>' +
       '<button class="btn ghost" id="logout">خروج</button></div><div id="body"></div>';
