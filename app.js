@@ -29,6 +29,26 @@
   };
   function ic(name) { return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="' + ICONS[name] + '"/></svg>'; }
   function ext(href) { return ' target="_blank" rel="noopener" href="' + esc(href) + '"'; }
+  // المحل مفتوح دلوقتى ولا لأ (بتوقيت القاهرة)
+  function openStatus() {
+    if (!SHOP.openDays || !SHOP.openDays.length || SHOP.openFrom == null || SHOP.openTo == null) return null;
+    try {
+      var now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }));
+      var h = now.getHours() + now.getMinutes() / 60;
+      return { open: SHOP.openDays.indexOf(now.getDay()) >= 0 && h >= SHOP.openFrom && h < SHOP.openTo };
+    } catch (e) { return null; }
+  }
+  // الكفر: اللوجو واسم المحل والوصف ومواعيد العمل
+  function heroHtml() {
+    var st = openStatus();
+    return '<section class="hero' + (SHOP.cover ? ' has-cover" style="background-image:linear-gradient(to top, rgba(12,18,26,.95) 0%, rgba(12,18,26,.6) 42%, rgba(12,18,26,.1) 100%), url(\'' + esc(encodeURI(SHOP.cover)) + '\')' : '') + '">' +
+      '<div class="hero-in"><img class="hero-logo" src="logo.svg" alt=""><div class="hero-text">' +
+      '<h1>' + esc(SHOP.name) + '</h1><p>' + esc(SHOP.tagline) + '</p>' +
+      '<div class="chips">' +
+      (st ? '<span class="chip ' + (st.open ? 'chip-open' : 'chip-closed') + '">' + (st.open ? 'مفتوح الآن' : 'مغلق الآن') + '</span>' : '') +
+      (SHOP.hours ? '<span class="chip">' + ic('clock') + ' ' + esc(SHOP.hours) + '</span>' : '') +
+      '</div></div></div></section>';
+  }
   // أزرار الوصول السريع تحت الكفر
   function quickHtml() {
     return '<nav class="quick" id="sec-contact">' +
@@ -37,18 +57,6 @@
       '<a class="q q-wa"' + ext('https://wa.me/' + SHOP.whatsapp[0]) + '><span class="qi">' + ic('wa') + '</span><span><strong>واتساب</strong><small>راسلنا الآن</small></span></a>' +
       '<a class="q q-call" href="tel:' + esc(SHOP.phones[0].number) + '"><span class="qi">' + ic('phone') + '</span><span><strong>اتصل بنا</strong><small><bdi dir="ltr">' + esc(SHOP.phones[0].number) + '</bdi></small></span></a>' +
       '</nav>';
-  }
-  // قسم العنوان والخريطة وبيانات التواصل
-  function contactHtml() {
-    return '<section class="contact"><h2>زورنا وتواصل معنا</h2><div class="contact-grid' + (SHOP.mapQuery ? '' : ' no-map') + '">' +
-      (SHOP.mapQuery ? '<div class="map"><iframe title="موقع المحل على الخريطة" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=' + encodeURIComponent(SHOP.mapQuery) + '&z=16&hl=ar&output=embed"></iframe></div>' : '') +
-      '<div class="info">' +
-      '<div class="irow"><span class="qi q-map">' + ic('pin') + '</span><div><strong>العنوان</strong><div>' + esc(SHOP.address) + '</div></div></div>' +
-      (SHOP.hours ? '<div class="irow"><span class="qi q-time">' + ic('clock') + '</span><div><strong>مواعيد العمل</strong><div>' + esc(SHOP.hours) + '</div></div></div>' : '') +
-      '<div class="irow"><span class="qi q-call">' + ic('phone') + '</span><div><strong>التليفونات</strong>' + SHOP.phones.map(function (p) {
-        return '<div>' + esc(p.label) + ': <a href="tel:' + esc(p.number) + '"><bdi dir="ltr">' + esc(p.number) + '</bdi></a></div>';
-      }).join('') + '</div></div>' +
-      '</div></div></section>';
   }
   // زر واتساب لكل رقم من أرقام المحل
   function waButtons(text, label) {
@@ -124,7 +132,7 @@
     PARTS.forEach(function (p) { if (p.yearFrom) for (var y = p.yearFrom; y <= p.yearTo; y++) years.push(y); });
     var models = PARTS.filter(function (p) { return !filters.brand || p.brand === filters.brand; }).map(function (p) { return p.model; });
     app.innerHTML =
-      '<section class="hero' + (SHOP.cover ? ' has-cover" style="background-image:linear-gradient(to top, rgba(12,18,26,.92) 0%, rgba(12,18,26,.35) 55%, rgba(12,18,26,.15) 100%), url(\'' + esc(encodeURI(SHOP.cover)) + '\')' : '') + '"><h1>' + esc(SHOP.name) + '</h1><p>' + esc(SHOP.tagline) + '</p></section>' +
+      heroHtml() +
       quickHtml() + '<div class="sec-head" id="sec-search"><h2>البحث</h2></div>' +
       '<section class="filters">' +
       '<input class="wide" id="f-q" type="search" placeholder="ابحث باسم القطعة أو الموديل" value="' + esc(filters.q) + '">' +
@@ -139,8 +147,7 @@
       (SHOP.gallery && SHOP.gallery.length ? '<section class="tour" id="sec-tour"><div class="sec-head"><h2>جولة داخل المحل</h2><a href="#/gallery">عرض كل الصور ←</a></div>' +
         '<div class="strip">' + SHOP.gallery.map(function (s) {
           return '<a href="#/gallery"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></a>';
-        }).join('') + '</div></section>' : '') +
-      contactHtml();
+        }).join('') + '</div></section>' : '');
     renderList();
     document.getElementById('f-q').addEventListener('input', function (e) { filters.q = e.target.value; renderList(); });
     ['brand', 'model', 'year', 'category', 'condition'].forEach(function (k) {
@@ -452,7 +459,7 @@
   (function buildMenu() {
     var d = document.createElement('div');
     d.innerHTML = '<div class="backdrop"></div><aside class="drawer" aria-label="القائمة">' +
-      '<div class="drawer-head"><strong>' + esc(SHOP.name) + '</strong><button type="button" class="drawer-close" aria-label="إغلاق القائمة">✕</button></div>' +
+      '<div class="drawer-head"><img class="logo-img" src="logo.svg" alt=""><strong>' + esc(SHOP.shortName || SHOP.name) + '</strong><button type="button" class="drawer-close" aria-label="إغلاق القائمة">✕</button></div>' +
       MENU.map(function (m) {
         return '<button type="button" class="mitem" ' + (m.route ? 'data-route="' + m.route + '"' : 'data-go="' + m.id + '"') + '><span class="qi">' + ic(m.icon) + '</span>' + m.label +
           (m.route === 'inquiries' ? '<span class="reply-badge" style="display:none"></span>' : '') + '</button>';
@@ -472,7 +479,7 @@
   })();
 
   document.title = SHOP.name;
-  document.getElementById('shopName').textContent = SHOP.name;
+  document.getElementById('shopName').textContent = SHOP.shortName || SHOP.name;
   document.getElementById('footer').innerHTML = '<div class="in"><strong>' + esc(SHOP.name) + '</strong>' +
     '<div class="faddr">' + esc(SHOP.address) + (SHOP.hours ? ' · ' + esc(SHOP.hours) : '') + '</div>' +
     '<div class="flinks"><a href="#/gallery">جولة داخل المحل</a><a class="q-map"' + ext(SHOP.mapLink) + '>' + ic('pin') + ' الخريطة</a>' +
