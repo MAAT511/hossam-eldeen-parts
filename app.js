@@ -42,7 +42,7 @@
   function heroHtml() {
     var st = openStatus();
     return '<section class="hero' + (SHOP.cover ? ' has-cover" style="background-image:linear-gradient(to top, rgba(12,18,26,.95) 0%, rgba(12,18,26,.6) 42%, rgba(12,18,26,.1) 100%), url(\'' + esc(encodeURI(SHOP.cover)) + '\')' : '') + '">' +
-      '<div class="hero-in"><img class="hero-logo" src="logo.svg" alt=""><div class="hero-text">' +
+      '<div class="hero-in"><img class="hero-logo" src="images/logo.jpg" alt=""><div class="hero-text">' +
       '<h1>' + esc(SHOP.name) + '</h1><p>' + esc(SHOP.tagline) + '</p>' +
       '<div class="chips">' +
       (st ? '<span class="chip ' + (st.open ? 'chip-open' : 'chip-closed') + '">' + (st.open ? 'مفتوح الآن' : 'مغلق الآن') + '</span>' : '') +
@@ -459,7 +459,7 @@
   (function buildMenu() {
     var d = document.createElement('div');
     d.innerHTML = '<div class="backdrop"></div><aside class="drawer" aria-label="القائمة">' +
-      '<div class="drawer-head"><img class="logo-img" src="logo.svg" alt=""><strong>' + esc(SHOP.shortName || SHOP.name) + '</strong><button type="button" class="drawer-close" aria-label="إغلاق القائمة">✕</button></div>' +
+      '<div class="drawer-head"><img class="logo-img" src="images/logo.jpg" alt=""><strong>' + esc(SHOP.shortName || SHOP.name) + '</strong><button type="button" class="drawer-close" aria-label="إغلاق القائمة">✕</button></div>' +
       MENU.map(function (m) {
         return '<button type="button" class="mitem" ' + (m.route ? 'data-route="' + m.route + '"' : 'data-go="' + m.id + '"') + '><span class="qi">' + ic(m.icon) + '</span>' + m.label +
           (m.route === 'inquiries' ? '<span class="reply-badge" style="display:none"></span>' : '') + '</button>';
