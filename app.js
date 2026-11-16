@@ -117,9 +117,10 @@
     var models = PARTS.filter(function (p) { return !filters.brand || p.brand === filters.brand; }).map(function (p) { return p.model; });
     app.innerHTML =
       '<section class="hero' + (SHOP.cover ? ' has-cover" style="background-image:linear-gradient(to top, rgba(12,18,26,.92) 0%, rgba(12,18,26,.35) 55%, rgba(12,18,26,.15) 100%), url(\'' + esc(encodeURI(SHOP.cover)) + '\')' : '') + '"><h1>' + esc(SHOP.name) + '</h1><p>' + esc(SHOP.tagline) + '</p></section>' + quickHtml() +
-      (SHOP.gallery && SHOP.gallery.length ? '<section class="strip">' + SHOP.gallery.map(function (s) {
-        return '<a href="' + esc(s) + '" target="_blank" rel="noopener"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></a>';
-      }).join('') + '</section>' : '') +
+      (SHOP.gallery && SHOP.gallery.length ? '<section class="tour"><div class="sec-head"><h2>جولة داخل المحل</h2><a href="#/gallery">عرض كل الصور ←</a></div>' +
+        '<div class="strip">' + SHOP.gallery.map(function (s) {
+          return '<a href="#/gallery"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></a>';
+        }).join('') + '</div></section><div class="sec-head"><h2>القطع المعروضة</h2></div>' : '') +
       '<section class="filters">' +
       '<input class="wide" id="f-q" type="search" placeholder="ابحث باسم القطعة أو الموديل" value="' + esc(filters.q) + '">' +
       '<select id="f-brand">' + options(uniq(PARTS.map(function (p) { return p.brand; })), filters.brand, 'كل الماركات') + '</select>' +
@@ -250,6 +251,27 @@
       '<a class="btn ghost block" href="#/">رجوع للقطع</a></div></div>';
   }
 
+  // ---------- معرض المحل ----------
+  function viewGallery() {
+    var pics = (SHOP.cover ? [SHOP.cover] : []).concat(SHOP.gallery || []);
+    app.innerHTML = '<a class="back" href="#/">→ رجوع للرئيسية</a>' +
+      '<div class="sec-head"><h2>جولة داخل المحل</h2></div>' +
+      '<p class="meta" style="margin-top:-4px">صور من داخل ' + esc(SHOP.name) + ' — اضغط على أى صورة لتكبيرها</p>' +
+      '<div class="gal">' + pics.map(function (s, i) {
+        return '<button type="button" data-i="' + i + '"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></button>';
+      }).join('') + '</div>' +
+      '<div class="cta" style="margin-top:16px"><a class="btn" href="#/">تصفح القطع المعروضة</a></div>';
+    app.querySelectorAll('.gal button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var box = document.createElement('div');
+        box.className = 'lightbox';
+        box.innerHTML = '<img src="' + esc(pics[Number(b.getAttribute('data-i'))]) + '" alt="صورة من المحل"><span>إغلاق ✕</span>';
+        box.addEventListener('click', function () { box.remove(); });
+        document.body.appendChild(box);
+      });
+    });
+  }
+
   // ---------- التنقل ----------
   function route() {
     var h = location.hash.replace(/^#\/?/, '');
@@ -257,6 +279,7 @@
     if (h.indexOf('part/') === 0) viewPart(decodeURIComponent(h.slice(5)));
     else if (h === 'cart') viewCart();
     else if (h === 'checkout') viewCheckout();
+    else if (h === 'gallery') viewGallery();
     else viewHome();
   }
 
@@ -264,7 +287,7 @@
   document.getElementById('shopName').textContent = SHOP.name;
   document.getElementById('footer').innerHTML = '<div class="in"><strong>' + esc(SHOP.name) + '</strong>' +
     '<div class="faddr">' + esc(SHOP.address) + (SHOP.hours ? ' · ' + esc(SHOP.hours) : '') + '</div>' +
-    '<div class="flinks"><a class="q-map"' + ext(SHOP.mapLink) + '>' + ic('pin') + ' الخريطة</a>' +
+    '<div class="flinks"><a href="#/gallery">جولة داخل المحل</a><a class="q-map"' + ext(SHOP.mapLink) + '>' + ic('pin') + ' الخريطة</a>' +
     '<a class="q-fb"' + ext(SHOP.facebook) + '>' + ic('fb') + ' فيسبوك</a>' +
     SHOP.whatsapp.map(function (n) { return '<a class="q-wa"' + ext('https://wa.me/' + n) + '>' + ic('wa') + ' <bdi dir="ltr">0' + esc(n.slice(2)) + '</bdi></a>'; }).join('') +
     '</div></div>';
