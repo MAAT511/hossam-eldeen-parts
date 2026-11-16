@@ -6,7 +6,7 @@
     return;
   }
   var db = window.supabase.createClient(SHOP.supabaseUrl, SHOP.supabaseKey);
-  var parts = [], orders = [], tour = [], tourReady = false, tab = 'parts', q = '';
+  var parts = [], orders = [], tour = [], tourReady = false, inquiries = [], inqReady = false, tab = 'parts', q = '';
   var CONDITIONS = ['ممتازة', 'جيدة جدا', 'جيدة'];
   var CATEGORIES = ['موتور وفتيس', 'كهرباء وإضاءة', 'صاج وهيكل', 'تكييف وتبريد', 'عفشة وفرامل', 'جنوط وكاوتش', 'صالون وفرش'];
   var BRANDS = ['فولكس فاجن', 'سكودا', 'أودى', 'سيات'];
@@ -54,7 +54,9 @@
       db.from('parts').select('*').order('id', { ascending: false }),
       db.from('orders').select('*').order('id', { ascending: false }).limit(200),
       db.from('tour_photos').select('*').order('id'),
+      db.from('inquiries').select('*').order('id', { ascending: false }).limit(300),
     ]).then(function (res) {
+      inqReady = !res[3].error; inquiries = res[3].data || [];
       if (res[0].error || res[1].error) { root.innerHTML = '<div class="empty">تعذر تحميل البيانات، جرب تحديث الصفحة</div>'; return; }
       parts = res[0].data; orders = res[1].data;
       tourReady = !res[2].error; tour = res[2].data || [];
@@ -65,16 +67,69 @@
   // ---------- الهيكل ----------
   function render() {
     var newOrders = orders.filter(function (o) { return o.status === 'new'; }).length;
+    var newInq = inquiries.filter(function (i) { return !i.answer; }).length;
     root.innerHTML = '<div class="tabs">' +
       '<button class="btn ' + (tab === 'parts' ? '' : 'ghost') + '" data-tab="parts">عروض حسام الدين (' + parts.length + ')</button>' +
       '<button class="btn ' + (tab === 'orders' ? '' : 'ghost') + '" data-tab="orders">الطلبات' + (newOrders ? ' <span class="badge">' + newOrders + '</span>' : '') + '</button>' +
       '<button class="btn ' + (tab === 'tour' ? '' : 'ghost') + '" data-tab="tour">جولة داخل المحل (' + tour.length + ')</button>' +
+      '<button class="btn ' + (tab === 'inq' ? '' : 'ghost') + '" data-tab="inq">الاستعلامات' + (newInq ? ' <span class="badge">' + newInq + '</span>' : '') + '</button>' +
       '<button class="btn ghost" id="logout">خروج</button></div><div id="body"></div>';
     root.querySelectorAll('[data-tab]').forEach(function (b) {
       b.addEventListener('click', function () { tab = b.getAttribute('data-tab'); render(); });
     });
     document.getElementById('logout').addEventListener('click', function () { db.auth.signOut().then(function () { viewLogin(); }); });
-    if (tab === 'parts') renderParts(); else if (tab === 'tour') renderTour(); else renderOrders();
+    if (tab === 'parts') renderParts(); else if (tab === 'tour') renderTour(); else if (tab === 'inq') renderInquiries(); else renderOrders();
+  }
+
+  // ---------- الاستعلامات ----------
+  function renderInquiries() {
+    var body = document.getElementById('body');
+    if (!inqReady) {
+      body.innerHTML = '<div class="empty">القسم ده محتاج تشغيل ملف 4_inquiries.sql فى Supabase الأول</div>';
+      return;
+    }
+    body.innerHTML = inquiries.length ? inquiries.map(function (i) {
+      return '<div class="panel" data-inq="' + i.id + '"><div class="arow"><div class="thumb">' + (i.photo_url ? '<a target="_blank" rel="noopener" href="' + esc(i.photo_url) + '"><img src="' + esc(i.photo_url) + '" alt=""></a>' : '🔩') + '</div>' +
+        '<div class="grow"><strong>' + esc(i.part_name || 'صورة من جولة داخل المحل') + '</strong> ' +
+        '<span class="tag' + (i.answer ? '' : ' wait') + '">' + (i.answer ? 'تم الرد' : 'جديد') + '</span>' +
+        (i.question ? '<div>' + esc(i.question) + '</div>' : '') +
+        '<div class="meta">' + esc(i.customer_name) + ' — <a href="tel:' + esc(i.phone) + '">' + esc(i.phone) + '</a> · ' + new Date(i.created_at).toLocaleString('ar-EG') + '</div></div></div>' +
+        '<label class="field" style="margin-top:10px"><span>الرد والسعر</span><textarea rows="2" data-answer>' + esc(i.answer) + '</textarea></label>' +
+        '<div class="actions"><button class="btn small" data-act="save">حفظ الرد</button>' +
+        '<button class="btn small wa" data-act="wa">ابعت الرد واتساب</button>' +
+        '<button class="btn small ghost" data-act="del">حذف</button></div></div>';
+    }).join('') : '<div class="empty">لا توجد استعلامات حتى الآن</div>';
+    body.querySelectorAll('[data-inq]').forEach(function (card) {
+      var i = inquiries.filter(function (x) { return String(x.id) === card.getAttribute('data-inq'); })[0];
+      var ta = card.querySelector('[data-answer]');
+      function save(then) {
+        var answer = ta.value.trim();
+        if (!answer) { alert('اكتب الرد الأول'); return; }
+        db.from('inquiries').update({ answer: answer, answered_at: new Date().toISOString() }).eq('id', i.id).then(function (res) {
+          if (res.error) { fail('تعذر حفظ الرد', res.error); return; }
+          i.answer = answer;
+          if (then) then(answer);
+          render();
+        });
+      }
+      card.querySelector('[data-act=save]').addEventListener('click', function () { save(); });
+      card.querySelector('[data-act=wa]').addEventListener('click', function () {
+        // فتح الواتساب لازم يحصل مع الضغطة نفسها، فالنافذة تتفتح الأول وبعدين الرد يتحفظ
+        var answer = ta.value.trim();
+        if (!answer) { alert('اكتب الرد الأول'); return; }
+        var text = 'أهلا ' + i.customer_name + '، بخصوص استعلامك عن: ' + (i.part_name || i.question || 'صورة من جولة المحل') + '\n' + answer + '\n— ' + SHOP.name;
+        window.open('https://wa.me/2' + encodeURIComponent(i.phone) + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+        save();
+      });
+      card.querySelector('[data-act=del]').addEventListener('click', function () {
+        if (!confirm('حذف الاستعلام ده نهائيا؟')) return;
+        db.from('inquiries').delete().eq('id', i.id).then(function (res) {
+          if (res.error) { fail('تعذر الحذف', res.error); return; }
+          inquiries = inquiries.filter(function (x) { return x.id !== i.id; });
+          render();
+        });
+      });
+    });
   }
 
   // ---------- جولة داخل المحل ----------

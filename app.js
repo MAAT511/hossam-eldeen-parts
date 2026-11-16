@@ -147,8 +147,8 @@
     var p = byId(id);
     if (!p) { app.innerHTML = '<div class="empty">القطعة غير موجودة</div>'; return; }
     var inCart = getCart().indexOf(p.id) >= 0;
-    var ask = 'السلام عليكم، عاوز أسأل عن القطعة دى:\n' + p.name + ' — ' + p.brand + ' ' + p.model +
-      (p.yearFrom ? ' (' + p.yearFrom + ' إلى ' + p.yearTo + ')' : '') + '\nكود القطعة: ' + p.id + '\nالسعر: ' + money(p.price);
+    var nego = 'السلام عليكم، عاوز أتفاوض على سعر القطعة دى:\n' + p.name + ' — ' + p.brand + ' ' + p.model +
+      (p.yearFrom ? ' (' + p.yearFrom + ' إلى ' + p.yearTo + ')' : '') + '\nكود القطعة: ' + p.id + '\nالسعر المعروض: ' + money(p.price);
     app.innerHTML = '<a class="back" href="#/">→ رجوع للقطع</a>' +
       '<div class="detail' + (p.sold ? ' is-sold' : '') + '"><div class="gallery">' + (p.images && p.images.length ? p.images.map(function (s, i) { return picHtml(p, i); }).join('') : picHtml(p)) + '</div>' +
       '<div class="panel"><h2>' + esc(p.name) + '</h2>' +
@@ -165,10 +165,15 @@
       (p.sold ? '<button class="btn block" disabled>القطعة اتباعت</button>'
         : inCart ? '<a class="btn block" href="#/cart">القطعة فى السلة — اذهب للسلة</a>'
           : '<button class="btn block" id="add">أضف إلى السلة 🛒</button>') +
-      waButtons(ask, 'اسأل عنها على واتساب') +
+      (db && p.dbId ? '<button class="btn ghost block" id="inq">استعلم عن القطعة</button>' : '') +
+      (p.sold ? '' : waButtons(nego, 'تفاوض على السعر واتساب')) +
       '</div></div></div>';
     var add = document.getElementById('add');
     if (add) add.addEventListener('click', function () { addToCart(p.id); viewPart(p.id); });
+    var inq = document.getElementById('inq');
+    if (inq) inq.addEventListener('click', function () {
+      openInquiry({ partDbId: p.dbId, photo: p.images && p.images[0], title: p.name + ' — ' + p.brand + ' ' + p.model });
+    });
   }
 
   // ---------- السلة ----------
@@ -255,10 +260,14 @@
       '<div class="sec-head"><h2>جولة داخل المحل</h2></div>' +
       '<p class="meta" style="margin-top:-4px">صور من داخل ' + esc(SHOP.name) + ' — اضغط على أى صورة لتكبيرها</p>' +
       '<div class="gal">' + pics.map(function (s, i) {
-        return '<button type="button" data-i="' + i + '"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></button>';
+        return '<div class="gitem"><button type="button" class="gpic" data-i="' + i + '"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></button>' +
+          (db ? '<button type="button" class="btn small block ginq" data-i="' + i + '">استعلم عن السعر</button>' : '') + '</div>';
       }).join('') + '</div>' +
       '<div class="cta" style="margin-top:16px"><a class="btn" href="#/">تصفح القطع المعروضة</a></div>';
-    app.querySelectorAll('.gal button').forEach(function (b) {
+    app.querySelectorAll('.ginq').forEach(function (b) {
+      b.addEventListener('click', function () { openInquiry({ photo: pics[Number(b.getAttribute('data-i'))], title: 'صورة من جولة داخل المحل' }); });
+    });
+    app.querySelectorAll('.gal .gpic').forEach(function (b) {
       b.addEventListener('click', function () {
         var box = document.createElement('div');
         box.className = 'lightbox';
@@ -269,10 +278,92 @@
     });
   }
 
+  // ---------- الاستعلامات ----------
+  var INQ_KEY = 'my_inquiries_v1', SEEN_KEY = 'inq_seen_v1', WHO_KEY = 'inq_who_v1';
+  function lsGet(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* تجاهل */ } }
+  function setReplyBadge(n) {
+    document.querySelectorAll('.reply-badge').forEach(function (b) { b.textContent = n || ''; b.style.display = n ? '' : 'none'; });
+  }
+  // عدد الردود الجديدة اللى العميل لسه ما شافهاش
+  function checkReplies() {
+    var tokens = lsGet(INQ_KEY, []);
+    if (!db || !tokens.length) return;
+    db.rpc('my_inquiries', { p_tokens: tokens }).then(function (res) {
+      if (res.error) return;
+      var seen = lsGet(SEEN_KEY, []);
+      setReplyBadge(res.data.filter(function (i) { return i.answer && seen.indexOf(i.token) < 0; }).length);
+    });
+  }
+  function openInquiry(opt) {
+    var who = lsGet(WHO_KEY, {});
+    var box = document.createElement('div');
+    box.className = 'modal';
+    box.innerHTML = '<form class="panel modal-card" novalidate><h2>استعلام عن السعر</h2>' +
+      (opt.photo ? '<img class="modal-pic" src="' + esc(opt.photo) + '" alt="">' : '') +
+      '<div class="meta" style="margin-bottom:8px">' + esc(opt.title || '') + '</div>' +
+      '<label class="field"><span>الاسم</span><input name="name" autocomplete="name" value="' + esc(who.name || '') + '"></label>' +
+      '<label class="field"><span>رقم الموبايل (إجبارى)</span><input name="phone" type="tel" inputmode="numeric" placeholder="01xxxxxxxxx" value="' + esc(who.phone || '') + '"></label>' +
+      '<label class="field"><span>' + (opt.partDbId ? 'سؤالك عن القطعة' : 'القطعة اللى بتسأل عنها فى الصورة') + '</span><textarea name="question" rows="3"></textarea></label>' +
+      '<div class="err"></div><div class="two"><button class="btn" type="submit">إرسال الاستعلام</button>' +
+      '<button class="btn ghost" type="button" data-close>إلغاء</button></div></form>';
+    document.body.appendChild(box);
+    box.addEventListener('click', function (e) { if (e.target === box || e.target.hasAttribute('data-close')) box.remove(); });
+    box.querySelector('form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var f = e.target, err = f.querySelector('.err'), btn = f.querySelector('button[type=submit]');
+      var d = { name: f.name.value.trim(), phone: f.phone.value.trim(), question: f.question.value.trim() };
+      if (d.name.length < 2) { err.textContent = 'من فضلك اكتب الاسم'; return; }
+      if (!/^01[0125]\d{8}$/.test(d.phone)) { err.textContent = 'رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01'; return; }
+      if (!opt.partDbId && d.question.length < 2) { err.textContent = 'اكتب القطعة اللى بتسأل عنها'; return; }
+      btn.disabled = true; err.textContent = 'جارى الإرسال...';
+      db.rpc('submit_inquiry', {
+        p_name: d.name, p_phone: d.phone, p_question: d.question,
+        p_photo_url: opt.partDbId ? '' : (opt.photo || ''), p_part_id: opt.partDbId || null,
+      }).then(function (res) {
+        if (res.error) { btn.disabled = false; err.textContent = 'تعذر إرسال الاستعلام: ' + res.error.message; return; }
+        lsSet(INQ_KEY, lsGet(INQ_KEY, []).concat([res.data]).slice(-50));
+        lsSet(WHO_KEY, { name: d.name, phone: d.phone });
+        f.innerHTML = '<div style="text-align:center"><div style="font-size:44px">✅</div><h2>استعلامك وصل</h2>' +
+          '<p class="meta">المحل هيرد عليك، وتقدر تشوف الرد من «استعلاماتى» فى القائمة على نفس الموبايل ده.</p>' +
+          '<div class="stack"><a class="btn block" href="#/inquiries">استعلاماتى</a>' +
+          '<button class="btn ghost block" type="button" data-close>إغلاق</button></div></div>';
+      });
+    });
+  }
+  function viewInquiries() {
+    var tokens = lsGet(INQ_KEY, []);
+    var head = '<a class="back" href="#/">→ رجوع للرئيسية</a><div class="sec-head"><h2>استعلاماتى</h2></div>';
+    if (!db || !tokens.length) {
+      app.innerHTML = head + '<div class="empty">لسه ما بعتش أى استعلام من الموبايل ده<br><br><a class="btn" href="#/gallery">جولة داخل المحل</a></div>';
+      return;
+    }
+    app.innerHTML = head + '<div class="empty">جارى التحميل...</div>';
+    db.rpc('my_inquiries', { p_tokens: tokens }).then(function (res) {
+      if (location.hash.replace(/^#\/?/, '') !== 'inquiries') return;
+      if (res.error) { app.innerHTML = head + '<div class="empty">تعذر تحميل الاستعلامات، جرب تحديث الصفحة</div>'; return; }
+      lsSet(SEEN_KEY, res.data.filter(function (i) { return i.answer; }).map(function (i) { return i.token; }));
+      setReplyBadge(0);
+      app.innerHTML = head + '<p class="meta" style="margin-top:-4px">الاستعلامات دى محفوظة على الموبايل والمتصفح ده فقط</p>' +
+        (res.data.length ? res.data.map(function (i) {
+          var about = i.part_name || 'صورة من جولة داخل المحل';
+          var nego = 'السلام عليكم، بخصوص استعلامى عن: ' + about + (i.question ? '\nسؤالى: ' + i.question : '') + '\nرد المحل: ' + i.answer + '\nعاوز أتفاوض على السعر.';
+          return '<div class="panel"><div class="arow"><div class="thumb">' + (i.photo_url ? '<img src="' + esc(i.photo_url) + '" alt="">' : '🔩') + '</div>' +
+            '<div class="grow"><strong>' + esc(about) + '</strong>' +
+            (i.question ? '<div>' + esc(i.question) + '</div>' : '') +
+            '<div class="meta">' + new Date(i.created_at).toLocaleDateString('ar-EG') + '</div></div></div>' +
+            (i.answer ? '<div class="answer"><strong>رد المحل</strong><div>' + esc(i.answer) + '</div></div><div class="stack">' + waButtons(nego, 'تفاوض على واتساب') + '</div>'
+              : '<span class="tag wait">فى انتظار رد المحل</span>') + '</div>';
+        }).join('') : '<div class="empty">لا توجد استعلامات</div>');
+    });
+  }
+
   // ---------- التنقل ----------
   function route() {
     var h = location.hash.replace(/^#\/?/, '');
     window.scrollTo(0, 0);
+    document.querySelectorAll('.modal, .lightbox').forEach(function (m) { m.remove(); });
+    if (h === 'inquiries') { viewInquiries(); return; }
     if (h.indexOf('part/') === 0) viewPart(decodeURIComponent(h.slice(5)));
     else if (h === 'cart') viewCart();
     else if (h === 'checkout') viewCheckout();
@@ -292,7 +383,9 @@
     { id: 'sec-search', label: 'البحث', icon: 'search' },
     { id: 'sec-offers', label: 'عروض حسام الدين', icon: 'tag' },
     { id: 'sec-tour', label: 'جولة داخل المحل', icon: 'photo' },
+    { route: 'inquiries', label: 'استعلاماتى', icon: 'chat' },
   ];
+  ICONS.chat = 'M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z';
   ICONS.search = 'M15.500 14h-.800l-.300-.300A6.500 6.500 0 1 0 14 15.500l.300.300v.800l5 5 1.500-1.500-5.300-5.100zm-6 0a4.500 4.500 0 1 1 0-9 4.500 4.500 0 0 1 0 9z';
   ICONS.tag = 'M21.400 11.600l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7c0 .500.200 1 .600 1.400l9 9a2 2 0 0 0 2.800 0l7-7a2 2 0 0 0 0-2.800zM6.500 8A1.500 1.500 0 1 1 6.500 5a1.500 1.500 0 0 1 0 3z';
   ICONS.photo = 'M21 5H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM8 8.500a1.500 1.500 0 1 1 0 3 1.500 1.500 0 0 1 0-3zM4 17l4.500-4.500 2.500 2.500 4-5 5 7H4z';
@@ -307,14 +400,21 @@
     var d = document.createElement('div');
     d.innerHTML = '<div class="backdrop"></div><aside class="drawer" aria-label="القائمة">' +
       '<div class="drawer-head"><strong>' + esc(SHOP.name) + '</strong><button type="button" class="drawer-close" aria-label="إغلاق القائمة">✕</button></div>' +
-      MENU.map(function (m) { return '<button type="button" class="mitem" data-go="' + m.id + '"><span class="qi">' + ic(m.icon) + '</span>' + m.label + '</button>'; }).join('') +
+      MENU.map(function (m) {
+        return '<button type="button" class="mitem" ' + (m.route ? 'data-route="' + m.route + '"' : 'data-go="' + m.id + '"') + '><span class="qi">' + ic(m.icon) + '</span>' + m.label +
+          (m.route === 'inquiries' ? '<span class="reply-badge" style="display:none"></span>' : '') + '</button>';
+      }).join('') +
       '</aside>';
     while (d.firstChild) document.body.appendChild(d.firstChild);
+    document.getElementById('menuBtn').insertAdjacentHTML('beforeend', '<span class="reply-badge" style="display:none"></span>');
     document.getElementById('menuBtn').addEventListener('click', function () { document.body.classList.add('menu-open'); });
     document.querySelector('.backdrop').addEventListener('click', closeMenu);
     document.querySelector('.drawer-close').addEventListener('click', closeMenu);
     document.querySelectorAll('.mitem').forEach(function (b) {
-      b.addEventListener('click', function () { goSection(b.getAttribute('data-go')); });
+      b.addEventListener('click', function () {
+        if (b.hasAttribute('data-route')) { closeMenu(); location.hash = '#/' + b.getAttribute('data-route'); }
+        else goSection(b.getAttribute('data-go'));
+      });
     });
   })();
 
@@ -330,6 +430,7 @@
     setCart(getCart());
     window.addEventListener('hashchange', route);
     route();
+    checkReplies();
   }
   if (db) {
     app.innerHTML = '<div class="empty">جارى تحميل القطع...</div>';
