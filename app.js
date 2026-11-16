@@ -79,6 +79,9 @@
     var models = PARTS.filter(function (p) { return !filters.brand || p.brand === filters.brand; }).map(function (p) { return p.model; });
     app.innerHTML =
       '<section class="hero"><h1>' + esc(SHOP.name) + '</h1><p>' + esc(SHOP.tagline) + '</p></section>' +
+      (SHOP.gallery && SHOP.gallery.length ? '<section class="strip">' + SHOP.gallery.map(function (s) {
+        return '<a href="' + esc(s) + '" target="_blank" rel="noopener"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></a>';
+      }).join('') + '</section>' : '') +
       '<section class="filters">' +
       '<input class="wide" id="f-q" type="search" placeholder="ابحث باسم القطعة أو الموديل" value="' + esc(filters.q) + '">' +
       '<select id="f-brand">' + options(uniq(PARTS.map(function (p) { return p.brand; })), filters.brand, 'كل الماركات') + '</select>' +
