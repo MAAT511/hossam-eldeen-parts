@@ -20,6 +20,38 @@
     var src = p.images && p.images[i || 0];
     return '<div class="pic">' + (src ? '<img loading="lazy" src="' + esc(src) + '" alt="' + esc(p.name) + '">' : esc(p.icon || '🔩')) + '</div>';
   }
+  var ICONS = {
+    pin: 'M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.800 7-13a7 7 0 0 0-7-7zm0 9.500a2.500 2.500 0 1 1 0-5 2.500 2.500 0 0 1 0 5z',
+    fb: 'M13.500 22v-8h2.700l.400-3.200h-3.100V8.800c0-.900.300-1.600 1.600-1.600h1.700V4.300c-.300 0-1.300-.100-2.400-.100-2.400 0-4 1.500-4 4.100v2.500H7.700V14h2.700v8h3.100z',
+    phone: 'M6.600 10.800a15.100 15.100 0 0 0 6.600 6.600l2.200-2.200c.300-.300.700-.400 1-.200 1.100.400 2.300.600 3.600.600.600 0 1 .400 1 1V20c0 .600-.400 1-1 1A17 17 0 0 1 3 4c0-.600.400-1 1-1h3.500c.600 0 1 .400 1 1 0 1.300.200 2.500.600 3.600.100.300 0 .700-.200 1l-2.300 2.200z',
+    wa: 'M12 2a10 10 0 0 0-8.600 15.100L2 22l5-1.300A10 10 0 1 0 12 2zm5 14.200c-.200.600-1.200 1.100-1.700 1.200-.500.100-1 .200-3.300-.700-2.700-1.100-4.400-3.900-4.600-4.100-.100-.200-1.100-1.500-1.100-2.800s.700-2 .900-2.300c.200-.200.500-.300.700-.300h.500c.200 0 .400 0 .600.500l.800 2c.100.200.100.400 0 .500-.300.600-.700.800-.500 1.200.800 1.300 1.600 1.800 2.800 2.400.200.100.400.100.500-.100l.800-1c.200-.200.300-.200.600-.100l1.800.900c.200.100.400.200.400.300.100.100.100.600-.200 1.400z',
+    clock: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 10.400 3.300 2-.800 1.300L11 13V7h2v5.400z',
+  };
+  function ic(name) { return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="' + ICONS[name] + '"/></svg>'; }
+  function ext(href) { return ' target="_blank" rel="noopener" href="' + esc(href) + '"'; }
+  // أزرار الوصول السريع تحت الكفر
+  function quickHtml() {
+    return '<nav class="quick">' +
+      '<a class="q q-map"' + ext(SHOP.mapLink) + '><span class="qi">' + ic('pin') + '</span><span><strong>موقع المحل</strong><small>افتح الخريطة</small></span></a>' +
+      '<a class="q q-fb"' + ext(SHOP.facebook) + '><span class="qi">' + ic('fb') + '</span><span><strong>صفحة فيسبوك</strong><small>تابع الجديد</small></span></a>' +
+      '<a class="q q-wa"' + ext('https://wa.me/' + SHOP.whatsapp[0]) + '><span class="qi">' + ic('wa') + '</span><span><strong>واتساب</strong><small>راسلنا الآن</small></span></a>' +
+      '<a class="q q-call" href="tel:' + esc(SHOP.phones[0].number) + '"><span class="qi">' + ic('phone') + '</span><span><strong>اتصل بنا</strong><small><bdi dir="ltr">' + esc(SHOP.phones[0].number) + '</bdi></small></span></a>' +
+      '</nav>';
+  }
+  // قسم العنوان والخريطة وبيانات التواصل
+  function contactHtml() {
+    return '<section class="contact"><h2>زورنا وتواصل معنا</h2><div class="contact-grid">' +
+      (SHOP.mapQuery ? '<div class="map"><iframe title="موقع المحل على الخريطة" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=' + encodeURIComponent(SHOP.mapQuery) + '&z=16&hl=ar&output=embed"></iframe></div>' : '') +
+      '<div class="info">' +
+      '<div class="irow"><span class="qi q-map">' + ic('pin') + '</span><div><strong>العنوان</strong><div>' + esc(SHOP.address) + '</div></div></div>' +
+      (SHOP.hours ? '<div class="irow"><span class="qi q-time">' + ic('clock') + '</span><div><strong>مواعيد العمل</strong><div>' + esc(SHOP.hours) + '</div></div></div>' : '') +
+      '<div class="irow"><span class="qi q-call">' + ic('phone') + '</span><div><strong>التليفونات</strong>' + SHOP.phones.map(function (p) {
+        return '<div>' + esc(p.label) + ': <a href="tel:' + esc(p.number) + '"><bdi dir="ltr">' + esc(p.number) + '</bdi></a></div>';
+      }).join('') + '</div></div>' +
+      '<div class="cta"><a class="btn b-map"' + ext(SHOP.mapLink) + '>' + ic('pin') + ' الاتجاهات على خرائط جوجل</a>' +
+      '<a class="btn b-fb"' + ext(SHOP.facebook) + '>' + ic('fb') + ' صفحتنا على فيسبوك</a></div>' +
+      '</div></div></section>';
+  }
   // زر واتساب لكل رقم من أرقام المحل
   function waButtons(text, label) {
     return SHOP.whatsapp.map(function (n) {
@@ -84,7 +116,7 @@
     PARTS.forEach(function (p) { if (p.yearFrom) for (var y = p.yearFrom; y <= p.yearTo; y++) years.push(y); });
     var models = PARTS.filter(function (p) { return !filters.brand || p.brand === filters.brand; }).map(function (p) { return p.model; });
     app.innerHTML =
-      '<section class="hero' + (SHOP.cover ? ' has-cover" style="background-image:linear-gradient(to top, rgba(12,18,26,.92) 0%, rgba(12,18,26,.35) 55%, rgba(12,18,26,.15) 100%), url(\'' + esc(encodeURI(SHOP.cover)) + '\')' : '') + '"><h1>' + esc(SHOP.name) + '</h1><p>' + esc(SHOP.tagline) + '</p></section>' +
+      '<section class="hero' + (SHOP.cover ? ' has-cover" style="background-image:linear-gradient(to top, rgba(12,18,26,.92) 0%, rgba(12,18,26,.35) 55%, rgba(12,18,26,.15) 100%), url(\'' + esc(encodeURI(SHOP.cover)) + '\')' : '') + '"><h1>' + esc(SHOP.name) + '</h1><p>' + esc(SHOP.tagline) + '</p></section>' + quickHtml() +
       (SHOP.gallery && SHOP.gallery.length ? '<section class="strip">' + SHOP.gallery.map(function (s) {
         return '<a href="' + esc(s) + '" target="_blank" rel="noopener"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></a>';
       }).join('') + '</section>' : '') +
@@ -96,7 +128,7 @@
       '<select id="f-category">' + options(uniq(PARTS.map(function (p) { return p.category; })), filters.category, 'نوع القطعة') + '</select>' +
       '<select id="f-condition">' + options(uniq(PARTS.map(function (p) { return p.condition; })), filters.condition, 'الحالة') + '</select>' +
       '<label class="check wide"><input id="f-hideSold" type="checkbox"' + (filters.hideSold ? ' checked' : '') + '> إخفاء القطع المباعة</label>' +
-      '</section><div class="count" id="count"></div><div id="list"></div>' +
+      '</section><div class="count" id="count"></div><div id="list"></div>' + contactHtml() +
       '<section class="panel fb"><h2>آخر منشورات المحل على فيسبوك</h2>' +
       '<iframe title="صفحة المحل على فيسبوك" loading="lazy" scrolling="no" frameborder="0" allow="encrypted-media; picture-in-picture; web-share" src="https://www.facebook.com/plugins/page.php?href=' +
       encodeURIComponent(SHOP.facebook) + '&tabs=timeline&width=500&height=700&small_header=true&adapt_container_width=true&hide_cover=false&show_facepile=false"></iframe>' +
@@ -231,12 +263,11 @@
   document.title = SHOP.name;
   document.getElementById('shopName').textContent = SHOP.name;
   document.getElementById('footer').innerHTML = '<div class="in"><strong>' + esc(SHOP.name) + '</strong>' +
-    '<div>📍 ' + esc(SHOP.address) + ' — <a target="_blank" rel="noopener" href="' + esc(SHOP.mapLink) + '">الموقع على الخريطة</a></div>' +
-    SHOP.phones.map(function (p) { return '<div>📞 ' + esc(p.label) + ': <a href="tel:' + esc(p.number) + '">' + esc(p.number) + '</a></div>'; }).join('') +
-    (SHOP.hours ? '<div>🕙 ' + esc(SHOP.hours) + '</div>' : '') +
-    '<div><a target="_blank" rel="noopener" href="' + esc(SHOP.facebook) + '">صفحتنا على فيسبوك</a>' + SHOP.whatsapp.map(function (n) {
-      return ' · <a target="_blank" rel="noopener" href="https://wa.me/' + esc(n) + '">واتساب <bdi dir="ltr">0' + esc(n.slice(2)) + '</bdi></a>';
-    }).join('') + '</div></div>';
+    '<div class="faddr">' + esc(SHOP.address) + (SHOP.hours ? ' · ' + esc(SHOP.hours) : '') + '</div>' +
+    '<div class="flinks"><a class="q-map"' + ext(SHOP.mapLink) + '>' + ic('pin') + ' الخريطة</a>' +
+    '<a class="q-fb"' + ext(SHOP.facebook) + '>' + ic('fb') + ' فيسبوك</a>' +
+    SHOP.whatsapp.map(function (n) { return '<a class="q-wa"' + ext('https://wa.me/' + n) + '>' + ic('wa') + ' <bdi dir="ltr">0' + esc(n.slice(2)) + '</bdi></a>'; }).join('') +
+    '</div></div>';
   function start() {
     setCart(getCart());
     window.addEventListener('hashchange', route);
