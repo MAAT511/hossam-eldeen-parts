@@ -117,7 +117,7 @@
     var models = PARTS.filter(function (p) { return !filters.brand || p.brand === filters.brand; }).map(function (p) { return p.model; });
     app.innerHTML =
       '<section class="hero' + (SHOP.cover ? ' has-cover" style="background-image:linear-gradient(to top, rgba(12,18,26,.92) 0%, rgba(12,18,26,.35) 55%, rgba(12,18,26,.15) 100%), url(\'' + esc(encodeURI(SHOP.cover)) + '\')' : '') + '"><h1>' + esc(SHOP.name) + '</h1><p>' + esc(SHOP.tagline) + '</p></section>' +
-      '<div class="sec-head offers"><h2>عروض حسام الدين</h2></div>' +
+      quickHtml() + '<div class="sec-head offers"><h2>عروض حسام الدين</h2></div>' +
       '<section class="filters">' +
       '<input class="wide" id="f-q" type="search" placeholder="ابحث باسم القطعة أو الموديل" value="' + esc(filters.q) + '">' +
       '<details class="wide"' + (filters.brand || filters.model || filters.year || filters.category || filters.condition || filters.hideSold ? ' open' : '') + '><summary>فلترة بالماركة والموديل والسنة</summary><div class="fgrid">' +
@@ -127,7 +127,7 @@
       '<select id="f-category">' + options(uniq(PARTS.map(function (p) { return p.category; })), filters.category, 'نوع القطعة') + '</select>' +
       '<select id="f-condition">' + options(uniq(PARTS.map(function (p) { return p.condition; })), filters.condition, 'الحالة') + '</select>' +
       '<label class="check wide"><input id="f-hideSold" type="checkbox"' + (filters.hideSold ? ' checked' : '') + '> إخفاء القطع المباعة</label>' +
-      '</div></details></section><div class="count" id="count"></div><div id="list"></div>' + quickHtml() +
+      '</div></details></section><div class="count" id="count"></div><div id="list"></div>' +
       (SHOP.gallery && SHOP.gallery.length ? '<section class="tour"><div class="sec-head"><h2>جولة داخل المحل</h2><a href="#/gallery">عرض كل الصور ←</a></div>' +
         '<div class="strip">' + SHOP.gallery.map(function (s) {
           return '<a href="#/gallery"><img loading="lazy" src="' + esc(s) + '" alt="صورة من المحل"></a>';
