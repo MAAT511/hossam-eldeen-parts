@@ -93,7 +93,7 @@
         '<div class="grow"><strong>' + esc(i.part_name || 'صورة من جولة داخل المحل') + '</strong> ' +
         '<span class="tag' + (i.answer ? '' : ' wait') + '">' + (i.answer ? 'تم الرد' : 'جديد') + '</span>' +
         (i.question ? '<div>' + esc(i.question) + '</div>' : '') +
-        '<div class="meta">' + esc(i.customer_name) + ' — <a href="tel:' + esc(i.phone) + '">' + esc(i.phone) + '</a> · ' + new Date(i.created_at).toLocaleString('ar-EG') + '</div></div></div>' +
+        '<div class="meta">' + 'واتساب العميل: <a href="tel:' + esc(i.phone) + '">' + esc(i.phone) + '</a> · ' + new Date(i.created_at).toLocaleString('ar-EG') + '</div></div></div>' +
         '<label class="field" style="margin-top:10px"><span>الرد والسعر</span><textarea rows="2" data-answer>' + esc(i.answer) + '</textarea></label>' +
         '<div class="actions"><button class="btn small" data-act="save">حفظ الرد</button>' +
         '<button class="btn small wa" data-act="wa">ابعت الرد واتساب</button>' +
@@ -117,7 +117,7 @@
         // فتح الواتساب لازم يحصل مع الضغطة نفسها، فالنافذة تتفتح الأول وبعدين الرد يتحفظ
         var answer = ta.value.trim();
         if (!answer) { alert('اكتب الرد الأول'); return; }
-        var text = 'أهلا ' + i.customer_name + '، بخصوص استعلامك عن: ' + (i.part_name || i.question || 'صورة من جولة المحل') + '\n' + answer + '\n— ' + SHOP.name;
+        var text = 'أهلا بيك، بخصوص استعلامك عن: ' + (i.part_name || i.question || 'صورة من جولة المحل') + '\n' + answer + '\n— ' + SHOP.name;
         window.open('https://wa.me/2' + encodeURIComponent(i.phone) + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
         save();
       });

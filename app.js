@@ -302,8 +302,7 @@
     box.innerHTML = '<form class="panel modal-card" novalidate><h2>استعلام عن السعر</h2>' +
       (opt.photo ? '<img class="modal-pic" src="' + esc(opt.photo) + '" alt="">' : '') +
       '<div class="meta" style="margin-bottom:8px">' + esc(opt.title || '') + '</div>' +
-      '<label class="field"><span>الاسم</span><input name="name" autocomplete="name" value="' + esc(who.name || '') + '"></label>' +
-      '<label class="field"><span>رقم الموبايل (إجبارى)</span><input name="phone" type="tel" inputmode="numeric" placeholder="01xxxxxxxxx" value="' + esc(who.phone || '') + '"></label>' +
+      '<label class="field"><span>رقم الواتساب</span><input name="phone" type="tel" inputmode="numeric" placeholder="01xxxxxxxxx" value="' + esc(who.phone || '') + '"></label>' +
       '<label class="field"><span>' + (opt.partDbId ? 'سؤالك عن القطعة' : 'القطعة اللى بتسأل عنها فى الصورة') + '</span><textarea name="question" rows="3"></textarea></label>' +
       '<div class="err"></div><div class="two"><button class="btn" type="submit">إرسال الاستعلام</button>' +
       '<button class="btn ghost" type="button" data-close>إلغاء</button></div></form>';
@@ -312,18 +311,17 @@
     box.querySelector('form').addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.target, err = f.querySelector('.err'), btn = f.querySelector('button[type=submit]');
-      var d = { name: f.name.value.trim(), phone: f.phone.value.trim(), question: f.question.value.trim() };
-      if (d.name.length < 2) { err.textContent = 'من فضلك اكتب الاسم'; return; }
-      if (!/^01[0125]\d{8}$/.test(d.phone)) { err.textContent = 'رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01'; return; }
+      var d = { phone: f.phone.value.trim(), question: f.question.value.trim() };
+      if (!/^01[0125]\d{8}$/.test(d.phone)) { err.textContent = 'رقم الواتساب لازم يكون 11 رقم ويبدأ بـ 01'; return; }
       if (!opt.partDbId && d.question.length < 2) { err.textContent = 'اكتب القطعة اللى بتسأل عنها'; return; }
       btn.disabled = true; err.textContent = 'جارى الإرسال...';
       db.rpc('submit_inquiry', {
-        p_name: d.name, p_phone: d.phone, p_question: d.question,
+        p_name: 'عميل', p_phone: d.phone, p_question: d.question,
         p_photo_url: opt.partDbId ? '' : (opt.photo || ''), p_part_id: opt.partDbId || null,
       }).then(function (res) {
         if (res.error) { btn.disabled = false; err.textContent = 'تعذر إرسال الاستعلام: ' + res.error.message; return; }
         lsSet(INQ_KEY, lsGet(INQ_KEY, []).concat([res.data]).slice(-50));
-        lsSet(WHO_KEY, { name: d.name, phone: d.phone });
+        lsSet(WHO_KEY, { phone: d.phone });
         f.innerHTML = '<div style="text-align:center"><div style="font-size:44px">✅</div><h2>استعلامك وصل</h2>' +
           '<p class="meta">المحل هيرد عليك، وتقدر تشوف الرد من «استعلاماتى» فى القائمة على نفس الموبايل ده.</p>' +
           '<div class="stack"><a class="btn block" href="#/inquiries">استعلاماتى</a>' +
