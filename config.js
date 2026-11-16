@@ -18,6 +18,8 @@ window.SHOP = {
   hours: 'من الاثنين إلى السبت، من 10 صباحا إلى 11 مساء',
   // رقم التحويل إنستاباى (لو فاضى العميل ياخده من الواتساب)
   transferNumber: '01092617807',
+  // صورة الكفر أعلى الصفحة الرئيسية (سيبها فاضية لو مش عاوز كفر)
+  cover: 'images/shop-2.jpg',
   // صور المحل اللى تظهر فى الصفحة الرئيسية
   gallery: ['images/shop-1.jpg', 'images/shop-2.jpg', 'images/shop-3.jpg', 'images/shop-4.jpg', 'images/shop-5.jpg'],
   // ربط قاعدة البيانات Supabase (لو فاضيين الموقع يعرض القطع التجريبية من parts.js)
