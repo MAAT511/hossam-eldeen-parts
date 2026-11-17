@@ -10,8 +10,18 @@
   var CONDITIONS = ['ممتازة', 'جيدة جدا', 'جيدة'];
   var CATEGORIES = ['موتور وفتيس', 'كهرباء وإضاءة', 'صاج وهيكل', 'تكييف وتبريد', 'عفشة وفرامل', 'جنوط وكاوتش', 'صالون وفرش'];
   var BRANDS = ['فولكس فاجن', 'سكودا', 'أودى', 'سيات'];
-  var STATUS = { new: 'جديد', confirmed: 'تم التأكيد', delivered: 'تم التسليم', cancelled: 'ملغى' };
-  var PAY = { cod: 'الدفع عند الاستلام', transfer: 'تحويل فودافون كاش / إنستاباى', pickup: 'الاستلام والدفع فى المحل' };
+  var PAY = {
+    shop_cash: 'الدفع عند الاستلام من المحل',
+    transfer_pickup: 'تحويل فودافون كاش أو إنستاباى، ثم الاستلام من المحل',
+    transfer_ship: 'تحويل فودافون كاش أو إنستاباى، ثم الشحن',
+  };
+  function isShip(pay) { return pay === 'transfer_ship'; }
+  function statusText(o) {
+    if (o.status === 'new') return 'جديد — محتاج تأكيد';
+    if (o.status === 'cancelled') return 'ملغى';
+    if (o.status === 'ready') return isShip(o.pay_method) ? 'مؤكد — جاهز للشحن' : 'مؤكد — لم يتم الاستلام';
+    return isShip(o.pay_method) ? 'تم الشحن' : 'تم الاستلام';
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -336,26 +346,69 @@
     var body = document.getElementById('body');
     body.innerHTML = orders.length ? orders.map(function (o) {
       var wa = 'https://wa.me/2' + encodeURIComponent(o.phone);
-      return '<div class="panel"><div class="row"><strong>طلب رقم ' + o.id + '</strong><span class="meta">' + new Date(o.created_at).toLocaleString('ar-EG') + '</span></div>' +
+      var cls = o.status === 'done' ? '' : o.status === 'cancelled' ? ' sold' : ' wait';
+      return '<div class="panel" data-ord="' + o.id + '"><div class="row"><strong>طلب رقم ' + o.id + '</strong><span class="meta">' + new Date(o.created_at).toLocaleString('ar-EG') + '</span></div>' +
+        '<div><span class="tag' + cls + '">' + statusText(o) + '</span></div>' +
         '<div>' + esc(o.customer_name) + ' — <a href="tel:' + esc(o.phone) + '">' + esc(o.phone) + '</a> · <a target="_blank" rel="noopener" href="' + wa + '">واتساب</a></div>' +
-        '<div class="meta">' + esc(o.city) + ' — ' + esc(o.address) + '</div>' +
+        (isShip(o.pay_method) ? '<div class="meta">' + esc(o.city) + ' — ' + esc(o.address) + '</div>' : '') +
         (o.notes ? '<div class="meta">ملاحظات: ' + esc(o.notes) + '</div>' : '') +
         '<ul>' + (o.items || []).map(function (it) {
           if (it.inquiry_id) return '<li>' + esc(it.name) + (it.question ? ' — ' + esc(it.question) : '') + ' (سعر متفق عليه، استعلام رقم ' + esc(it.inquiry_id) + ') — ' + money(it.price) + '</li>';
           return '<li>' + esc(it.name) + ' (' + esc(it.brand) + ' ' + esc(it.model) + ') كود P' + esc(it.id) + ' — ' + money(it.price) + '</li>';
         }).join('') + '</ul>' +
         '<div class="row"><span>' + esc(PAY[o.pay_method] || o.pay_method) + '</span><span class="total">' + money(o.total) + '</span></div>' +
-        '<label class="field"><span>حالة الطلب</span><select data-order="' + o.id + '">' + Object.keys(STATUS).map(function (k) {
-          return '<option value="' + k + '"' + (k === o.status ? ' selected' : '') + '>' + STATUS[k] + '</option>';
-        }).join('') + '</select></label></div>';
+        '<div class="actions">' +
+        (o.status === 'new' ? '<button class="btn small" data-act="confirm">تأكيد الطلب</button>' : '') +
+        (o.status === 'ready' ? '<button class="btn small ghost" data-act="code">إظهار الكود</button>' +
+          '<button class="btn small" data-act="deliver">' + (isShip(o.pay_method) ? 'تم الشحن' : 'تم الاستلام') + '</button>' : '') +
+        (o.status === 'new' || o.status === 'ready' ? '<button class="btn small ghost" data-act="cancel">إلغاء الطلب</button>' : '') +
+        '</div>' +
+        '<div class="code-box" data-codebox hidden><span>كود الاستلام</span><strong>' + esc(o.pickup_code || '') + '</strong></div>' +
+        '<div data-deliverbox hidden><label class="field"><span>اكتب الكود اللى العميل بيوريهولك</span>' +
+        '<input data-code inputmode="numeric" maxlength="6" placeholder="------"></label>' +
+        '<div class="actions"><button class="btn small" data-act="deliver-ok">تأكيد التسليم</button>' +
+        '<button class="btn small ghost" data-act="deliver-nocode">تسليم بدون كود</button></div></div>' +
+        '</div>';
     }).join('') : '<div class="empty">لا توجد طلبات حتى الآن</div>';
-    body.querySelectorAll('[data-order]').forEach(function (s) {
-      s.addEventListener('change', function () {
-        var o = orders.filter(function (x) { return String(x.id) === s.getAttribute('data-order'); })[0];
-        db.from('orders').update({ status: s.value }).eq('id', o.id).then(function (res) {
-          if (res.error) { fail('تعذر الحفظ', res.error); s.value = o.status; return; }
-          o.status = s.value; render();
+    body.querySelectorAll('[data-ord]').forEach(function (card) {
+      var o = orders.filter(function (x) { return String(x.id) === card.getAttribute('data-ord'); })[0];
+      function act(name) { return card.querySelector('[data-act=' + name + ']'); }
+      function run(btn, rpc, args, after) {
+        btn.disabled = true;
+        db.rpc(rpc, args).then(function (res) {
+          if (res.error) { fail('تعذر تنفيذ الطلب', res.error); btn.disabled = false; return; }
+          after(res.data);
         });
+      }
+      if (act('confirm')) act('confirm').addEventListener('click', function () {
+        if (!confirm('تأكيد الطلب رقم ' + o.id + '؟ القطع هتتحجز ويتولد كود استلام للعميل.')) return;
+        run(this, 'admin_confirm_order', { p_id: o.id }, function (code) {
+          alert('تم التأكيد. كود الاستلام: ' + code);
+          loadAll();
+        });
+      });
+      if (act('code')) act('code').addEventListener('click', function () {
+        var box = card.querySelector('[data-codebox]');
+        box.hidden = !box.hidden;
+        this.textContent = box.hidden ? 'إظهار الكود' : 'إخفاء الكود';
+      });
+      if (act('deliver')) act('deliver').addEventListener('click', function () {
+        var box = card.querySelector('[data-deliverbox]');
+        box.hidden = false;
+        card.querySelector('[data-code]').focus();
+      });
+      if (act('deliver-ok')) act('deliver-ok').addEventListener('click', function () {
+        var code = card.querySelector('[data-code]').value.trim();
+        if (!code) { alert('اكتب الكود الأول'); return; }
+        run(this, 'admin_complete_order', { p_id: o.id, p_code: code }, loadAll);
+      });
+      if (act('deliver-nocode')) act('deliver-nocode').addEventListener('click', function () {
+        if (!confirm('تسليم الطلب من غير التأكد من الكود؟')) return;
+        run(this, 'admin_complete_order', { p_id: o.id, p_code: null }, loadAll);
+      });
+      if (act('cancel')) act('cancel').addEventListener('click', function () {
+        if (!confirm('إلغاء الطلب رقم ' + o.id + '؟ القطع هترجع متاحة للبيع.')) return;
+        run(this, 'admin_cancel_order', { p_id: o.id }, loadAll);
       });
     });
   }

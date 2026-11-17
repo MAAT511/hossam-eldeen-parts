@@ -217,10 +217,16 @@
 
   // ---------- إتمام الطلب ----------
   var PAY = {
-    cod: 'الدفع عند الاستلام',
-    transfer: 'تحويل فودافون كاش / إنستاباى',
-    pickup: 'الاستلام والدفع فى المحل',
+    shop_cash: 'الدفع عند الاستلام من المحل',
+    transfer_pickup: 'تحويل فودافون كاش أو إنستاباى، ثم الاستلام من المحل',
+    transfer_ship: 'تحويل فودافون كاش أو إنستاباى، ثم الشحن',
   };
+  function isShip(pay) { return pay === 'transfer_ship'; }
+  function transferNote() {
+    return SHOP.transferNumber
+      ? 'حوّل على رقم <bdi dir="ltr">' + esc(SHOP.transferNumber) + '</bdi> وابعت صورة الإيصال على الواتساب'
+      : 'المحل هيبعت لك رقم التحويل على الواتساب بعد تأكيد الطلب';
+  }
   // تحديث أسعار الاستعلامات اللى فى السلة من السيرفر (المحل ممكن يكون عدّل السعر بعد التفاوض)
   function syncInquiryPrices(list) {
     var map = lsGet(QCART_KEY, {});
@@ -247,22 +253,33 @@
       '<form class="panel" id="order" novalidate>' +
       '<label class="field"><span>الاسم</span><input name="name" autocomplete="name"></label>' +
       '<label class="field"><span>رقم الموبايل</span><input name="phone" type="tel" inputmode="numeric" placeholder="01xxxxxxxxx"></label>' +
+      '<h3>طريقة الدفع والاستلام</h3><div class="pay">' +
+      '<label><input type="radio" name="pay" value="shop_cash" checked><span>' + PAY.shop_cash + '</span></label>' +
+      '<label><input type="radio" name="pay" value="transfer_pickup"><span>' + PAY.transfer_pickup +
+      '<br><span class="meta">' + transferNote() + '</span></span></label>' +
+      '<label><input type="radio" name="pay" value="transfer_ship"><span>' + PAY.transfer_ship +
+      '<br><span class="meta">' + transferNote() + '</span>' +
+      '<br><span class="meta">تكلفة الشحن على العميل، ويتفق عليها مباشرة مع شركة الشحن</span></span></label>' +
+      '</div>' +
+      '<div id="ship-fields" hidden>' +
       '<label class="field"><span>المحافظة</span><input name="city"></label>' +
-      '<label class="field"><span>العنوان بالتفصيل</span><textarea name="address" rows="2"></textarea></label>' +
+      '<label class="field"><span>العنوان بالتفصيل</span><textarea name="address" rows="2"></textarea></label></div>' +
       '<label class="field"><span>ملاحظات (اختيارى)</span><textarea name="notes" rows="2"></textarea></label>' +
-      '<h3>طريقة الدفع</h3><div class="pay">' +
-      '<label><input type="radio" name="pay" value="cod" checked><span>' + PAY.cod + '</span></label>' +
-      '<label><input type="radio" name="pay" value="transfer"><span>' + PAY.transfer + '<br><span class="meta">' + (SHOP.transferNumber ? 'حوّل على رقم <bdi dir="ltr">' + esc(SHOP.transferNumber) + '</bdi> (فودافون كاش أو إنستاباى) وابعت صورة الإيصال على الواتساب' : 'المحل هيبعت لك رقم التحويل على الواتساب بعد تأكيد الطلب') + '</span></span></label>' +
-      '<label><input type="radio" name="pay" value="pickup"><span>' + PAY.pickup + '</span></label>' +
-      '</div><div class="err" id="err"></div>' +
+      '<div class="err" id="err"></div>' +
       '<button class="btn block" type="submit">تأكيد الطلب</button></form>';
-    document.getElementById('order').addEventListener('submit', function (e) {
+    var form = document.getElementById('order');
+    // خانات العنوان تظهر فى حالة الشحن بس
+    function syncShip() { document.getElementById('ship-fields').hidden = !isShip(form.pay.value); }
+    form.querySelectorAll('[name=pay]').forEach(function (r) { r.addEventListener('change', syncShip); });
+    syncShip();
+    form.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.target, err = document.getElementById('err');
       var d = { name: f.name.value.trim(), phone: f.phone.value.trim(), city: f.city.value.trim(), address: f.address.value.trim(), notes: f.notes.value.trim(), pay: f.pay.value };
-      if (!d.name || !d.city || !d.address) { err.textContent = 'من فضلك اكتب الاسم والمحافظة والعنوان'; return; }
+      if (d.name.length < 2) { err.textContent = 'من فضلك اكتب الاسم'; return; }
       if (!/^01[0125]\d{8}$/.test(d.phone)) { err.textContent = 'رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01'; return; }
-      if (!db) { viewDone(d, 'T' + Date.now().toString().slice(-7)); return; }
+      if (isShip(d.pay) && (!d.city || !d.address)) { err.textContent = 'اكتب المحافظة والعنوان بالتفصيل للشحن'; return; }
+      if (!db) { viewDone(d, { id: 'T' + Date.now().toString().slice(-7) }); return; }
       var btn = f.querySelector('button[type=submit]');
       btn.disabled = true; err.textContent = 'جارى تسجيل الطلب...';
       var items = cartItems();
@@ -274,21 +291,28 @@
       if (tokens.length) args.p_inquiry_tokens = tokens;
       db.rpc('place_order', args).then(function (res) {
         if (res.error) { btn.disabled = false; err.textContent = 'تعذر تسجيل الطلب: ' + res.error.message; return; }
-        viewDone(d, String(res.data));
+        // الرمز السرى يتحفظ على الموبايل عشان العميل يتابع طلبه من «طلباتى»
+        lsSet(ORDERS_KEY, lsGet(ORDERS_KEY, []).concat([res.data.token]).slice(-50));
+        viewDone(d, res.data);
       });
     });
   }
-  function viewDone(d, no) {
+  function viewDone(d, order) {
+    var no = order.id;
     var lines = cartItems().map(function (it) { return '- ' + it.name + ' (' + it.sub + ') — ' + money(it.price); });
     var msg = 'طلب جديد رقم ' + no + '\n' + lines.join('\n') + '\nالإجمالى: ' + money(cartTotal()) +
-      '\n\nالاسم: ' + d.name + '\nالموبايل: ' + d.phone + '\nالمحافظة: ' + d.city + '\nالعنوان: ' + d.address +
+      '\n\nالاسم: ' + d.name + '\nالموبايل: ' + d.phone +
+      (isShip(d.pay) ? '\nالمحافظة: ' + d.city + '\nالعنوان: ' + d.address : '') +
       '\nطريقة الدفع: ' + PAY[d.pay] + (d.notes ? '\nملاحظات: ' + d.notes : '');
     var total = money(cartTotal());
     setCart([]);
     app.innerHTML = '<div class="panel" style="text-align:center"><div style="font-size:48px">✅</div>' +
-      '<h2>طلبك جاهز للإرسال</h2><p>رقم الطلب: <strong>' + no + '</strong> — الإجمالى: <strong>' + total + '</strong></p>' +
-      '<p class="meta">اضغط الزر عشان تبعت الطلب للمحل على الواتساب، والمحل هيأكد معاك التوفر والشحن.</p>' +
+      '<h2>طلبك اتسجل</h2><p>رقم الطلب: <strong>' + esc(no) + '</strong> — الإجمالى: <strong>' + total + '</strong></p>' +
+      '<p class="meta">ابعت الطلب للمحل على الواتساب عشان يأكده معاك' +
+      (d.pay === 'shop_cash' ? '' : ' ويستلم التحويل') + '.</p>' +
+      '<p class="meta">بعد ما المحل يأكد الطلب هيظهر لك كود الاستلام فى صفحة «طلباتى».</p>' +
       '<div class="stack">' + waButtons(msg, 'إرسال الطلب على واتساب') +
+      '<a class="btn ghost block" href="#/orders">طلباتى</a>' +
       '<a class="btn ghost block" href="#/">رجوع للقطع</a></div></div>';
   }
 
@@ -319,19 +343,72 @@
 
   // ---------- الاستعلامات ----------
   var INQ_KEY = 'my_inquiries_v1', SEEN_KEY = 'inq_seen_v1', WHO_KEY = 'inq_who_v1';
+  var ORDERS_KEY = 'my_orders_v1', OSEEN_KEY = 'orders_seen_v1';
   function lsGet(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* تجاهل */ } }
-  function setReplyBadge(n) {
-    document.querySelectorAll('.reply-badge').forEach(function (b) { b.textContent = n || ''; b.style.display = n ? '' : 'none'; });
+  // الأرقام الحمرا: ردود الاستعلامات الجديدة وتغيّر حالة الطلبات
+  var badges = { inq: 0, ord: 0 };
+  function setBadge(kind, n) {
+    badges[kind] = n || 0;
+    document.querySelectorAll('.reply-badge').forEach(function (b) {
+      var k = b.getAttribute('data-badge');
+      var v = k ? badges[k] : badges.inq + badges.ord;
+      b.textContent = v || '';
+      b.style.display = v ? '' : 'none';
+    });
   }
-  // عدد الردود الجديدة اللى العميل لسه ما شافهاش
   function checkReplies() {
-    var tokens = lsGet(INQ_KEY, []);
-    if (!db || !tokens.length) return;
-    db.rpc('my_inquiries', { p_tokens: tokens }).then(function (res) {
+    if (!db) return;
+    var inq = lsGet(INQ_KEY, []);
+    if (inq.length) db.rpc('my_inquiries', { p_tokens: inq }).then(function (res) {
       if (res.error) return;
       var seen = lsGet(SEEN_KEY, []);
-      setReplyBadge(res.data.filter(function (i) { return i.answer && seen.indexOf(i.token) < 0; }).length);
+      setBadge('inq', res.data.filter(function (i) { return i.answer && seen.indexOf(i.token) < 0; }).length);
+    });
+    var ord = lsGet(ORDERS_KEY, []);
+    if (ord.length) db.rpc('my_orders', { p_tokens: ord }).then(function (res) {
+      if (res.error) return;
+      var seen = lsGet(OSEEN_KEY, []);
+      setBadge('ord', res.data.filter(function (o) { return o.status !== 'new' && seen.indexOf(o.token + ':' + o.status) < 0; }).length);
+    });
+  }
+
+  // ---------- طلباتى ----------
+  function orderStatusText(o) {
+    if (o.status === 'new') return 'فى انتظار تأكيد المحل';
+    if (o.status === 'cancelled') return 'ملغى';
+    if (o.status === 'ready') return isShip(o.pay_method) ? 'جاهز للشحن' : 'لم يتم الاستلام';
+    return isShip(o.pay_method) ? 'تم الشحن' : 'تم الاستلام';
+  }
+  function viewOrders() {
+    var tokens = lsGet(ORDERS_KEY, []);
+    var head = '<a class="back" href="#/">→ رجوع للرئيسية</a><div class="sec-head"><h2>طلباتى</h2></div>';
+    if (!db || !tokens.length) {
+      app.innerHTML = head + '<div class="empty">لسه ما عملتش أى طلب من الموبايل ده<br><br><a class="btn" href="#/">تصفح القطع</a></div>';
+      return;
+    }
+    app.innerHTML = head + '<div class="empty">جارى التحميل...</div>';
+    db.rpc('my_orders', { p_tokens: tokens }).then(function (res) {
+      if (location.hash.replace(/^#\/?/, '') !== 'orders') return;
+      if (res.error) { app.innerHTML = head + '<div class="empty">تعذر تحميل الطلبات، جرب تحديث الصفحة</div>'; return; }
+      lsSet(OSEEN_KEY, res.data.map(function (o) { return o.token + ':' + o.status; }));
+      setBadge('ord', 0);
+      app.innerHTML = head + '<p class="meta" style="margin-top:-4px">الطلبات دى محفوظة على الموبايل والمتصفح ده فقط</p>' +
+        (res.data.length ? res.data.map(function (o) {
+          var cls = o.status === 'done' ? '' : o.status === 'cancelled' ? ' sold' : ' wait';
+          return '<div class="panel"><div class="row"><strong>طلب رقم ' + esc(o.id) + '</strong>' +
+            '<span class="meta">' + new Date(o.created_at).toLocaleDateString('ar-EG') + '</span></div>' +
+            '<ul class="olist">' + (o.items || []).map(function (it) {
+              return '<li>' + esc(it.name) + (it.brand || it.model ? ' (' + esc(it.brand) + ' ' + esc(it.model) + ')' : '') + ' — ' + money(it.price) + '</li>';
+            }).join('') + '</ul>' +
+            '<div class="row total"><span>الإجمالى</span><span>' + money(o.total) + '</span></div>' +
+            '<div class="meta">' + esc(PAY[o.pay_method] || o.pay_method) + '</div>' +
+            (isShip(o.pay_method) ? '<div class="meta">تكلفة الشحن على العميل ويتفق عليها مع شركة الشحن</div>' : '') +
+            '<div style="margin-top:8px"><span class="tag' + cls + '">' + orderStatusText(o) + '</span></div>' +
+            (o.pickup_code ? '<div class="code-box"><span>' + (isShip(o.pay_method) ? 'كود الطلب' : 'كود الاستلام — ورّيه للمحل') + '</span>' +
+              '<strong>' + esc(o.pickup_code) + '</strong></div>' : '') +
+            '</div>';
+        }).join('') : '<div class="empty">لا توجد طلبات</div>');
     });
   }
   function openInquiry(opt) {
@@ -380,7 +457,7 @@
       if (location.hash.replace(/^#\/?/, '') !== 'inquiries') return;
       if (res.error) { app.innerHTML = head + '<div class="empty">تعذر تحميل الاستعلامات، جرب تحديث الصفحة</div>'; return; }
       lsSet(SEEN_KEY, res.data.filter(function (i) { return i.answer; }).map(function (i) { return i.token; }));
-      setReplyBadge(0);
+      setBadge('inq', 0);
       syncInquiryPrices(res.data);
       setCart(getCart());
       var inCart = getCart();
@@ -424,6 +501,7 @@
     window.scrollTo(0, 0);
     document.querySelectorAll('.modal, .lightbox').forEach(function (m) { m.remove(); });
     if (h === 'inquiries') { viewInquiries(); return; }
+    if (h === 'orders') { viewOrders(); return; }
     if (h.indexOf('part/') === 0) viewPart(decodeURIComponent(h.slice(5)));
     else if (h === 'cart') viewCart();
     else if (h === 'checkout') viewCheckout();
@@ -443,9 +521,11 @@
     { id: 'sec-search', label: 'البحث', icon: 'search' },
     { id: 'sec-offers', label: 'عروض حسام الدين', icon: 'tag' },
     { id: 'sec-tour', label: 'جولة داخل المحل', icon: 'photo' },
-    { route: 'inquiries', label: 'استعلاماتى', icon: 'chat' },
+    { route: 'inquiries', label: 'استعلاماتى', icon: 'chat', badge: 'inq' },
+    { route: 'orders', label: 'طلباتى', icon: 'bag', badge: 'ord' },
   ];
-  ICONS.chat = 'M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z';
+  ICONS.bag = 'M19 7h-3V6a4 4 0 0 0-8 0v1H5a1 1 0 0 0-1 1v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8a1 1 0 0 0-1-1zm-9-1a2 2 0 0 1 4 0v1h-4V6z';
+  ICONS.chat ='M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z';
   ICONS.search = 'M15.500 14h-.800l-.300-.300A6.500 6.500 0 1 0 14 15.500l.300.300v.800l5 5 1.500-1.500-5.300-5.100zm-6 0a4.500 4.500 0 1 1 0-9 4.500 4.500 0 0 1 0 9z';
   ICONS.tag = 'M21.400 11.600l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7c0 .500.200 1 .600 1.400l9 9a2 2 0 0 0 2.800 0l7-7a2 2 0 0 0 0-2.800zM6.500 8A1.500 1.500 0 1 1 6.500 5a1.500 1.500 0 0 1 0 3z';
   ICONS.photo = 'M21 5H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM8 8.500a1.500 1.500 0 1 1 0 3 1.500 1.500 0 0 1 0-3zM4 17l4.500-4.500 2.500 2.500 4-5 5 7H4z';
@@ -462,7 +542,7 @@
       '<div class="drawer-head"><img class="logo-img" src="images/logo.jpg" alt=""><strong>' + esc(SHOP.shortName || SHOP.name) + '</strong><button type="button" class="drawer-close" aria-label="إغلاق القائمة">✕</button></div>' +
       MENU.map(function (m) {
         return '<button type="button" class="mitem" ' + (m.route ? 'data-route="' + m.route + '"' : 'data-go="' + m.id + '"') + '><span class="qi">' + ic(m.icon) + '</span>' + m.label +
-          (m.route === 'inquiries' ? '<span class="reply-badge" style="display:none"></span>' : '') + '</button>';
+          (m.badge ? '<span class="reply-badge" data-badge="' + m.badge + '" style="display:none"></span>' : '') + '</button>';
       }).join('') +
       '</aside>';
     while (d.firstChild) document.body.appendChild(d.firstChild);
@@ -482,7 +562,7 @@
   document.getElementById('shopName').textContent = SHOP.shortName || SHOP.name;
   document.getElementById('footer').innerHTML = '<div class="in"><strong>' + esc(SHOP.name) + '</strong>' +
     '<div class="faddr">' + esc(SHOP.address) + (SHOP.hours ? ' · ' + esc(SHOP.hours) : '') + '</div>' +
-    '<div class="flinks"><a href="#/gallery">جولة داخل المحل</a><a class="q-map"' + ext(SHOP.mapLink) + '>' + ic('pin') + ' الخريطة</a>' +
+    '<div class="flinks"><a href="#/gallery">جولة داخل المحل</a><a href="#/orders">طلباتى</a><a class="q-map"' + ext(SHOP.mapLink) + '>' + ic('pin') + ' الخريطة</a>' +
     '<a class="q-fb"' + ext(SHOP.facebook) + '>' + ic('fb') + ' فيسبوك</a>' +
     SHOP.whatsapp.map(function (n) { return '<a class="q-wa"' + ext('https://wa.me/' + n) + '>' + ic('wa') + ' <bdi dir="ltr">0' + esc(n.slice(2)) + '</bdi></a>'; }).join('') +
     '</div></div>';
