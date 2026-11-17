@@ -8,16 +8,16 @@ alter table public.orders add column if not exists pickup_code text;
 alter table public.orders add column if not exists confirmed_at timestamptz;
 
 -- ===== طرق الدفع الجديدة =====
+alter table public.orders drop constraint if exists orders_pay_method_check;
 update public.orders set pay_method = 'shop_cash' where pay_method in ('cod', 'pickup');
 update public.orders set pay_method = 'transfer_ship' where pay_method = 'transfer';
-alter table public.orders drop constraint if exists orders_pay_method_check;
 alter table public.orders add constraint orders_pay_method_check
   check (pay_method in ('shop_cash', 'transfer_pickup', 'transfer_ship'));
 
 -- ===== حالات الطلب الجديدة =====
+alter table public.orders drop constraint if exists orders_status_check;
 update public.orders set status = 'ready' where status = 'confirmed';
 update public.orders set status = 'done' where status = 'delivered';
-alter table public.orders drop constraint if exists orders_status_check;
 alter table public.orders add constraint orders_status_check
   check (status in ('new', 'ready', 'done', 'cancelled'));
 
