@@ -349,7 +349,7 @@
       var cls = o.status === 'done' ? '' : o.status === 'cancelled' ? ' sold' : ' wait';
       return '<div class="panel" data-ord="' + o.id + '"><div class="row"><strong>طلب رقم ' + o.id + '</strong><span class="meta">' + new Date(o.created_at).toLocaleString('ar-EG') + '</span></div>' +
         '<div><span class="tag' + cls + '">' + statusText(o) + '</span></div>' +
-        '<div>' + esc(o.customer_name) + ' — <a href="tel:' + esc(o.phone) + '">' + esc(o.phone) + '</a> · <a target="_blank" rel="noopener" href="' + wa + '">واتساب</a></div>' +
+        '<div>' + (o.customer_name ? esc(o.customer_name) + ' — ' : '') + '<a href="tel:' + esc(o.phone) + '">' + esc(o.phone) + '</a> · <a target="_blank" rel="noopener" href="' + wa + '">واتساب</a></div>' +
         (isShip(o.pay_method) ? '<div class="meta">' + esc(o.city) + ' — ' + esc(o.address) + '</div>' : '') +
         (o.notes ? '<div class="meta">ملاحظات: ' + esc(o.notes) + '</div>' : '') +
         '<ul>' + (o.items || []).map(function (it) {

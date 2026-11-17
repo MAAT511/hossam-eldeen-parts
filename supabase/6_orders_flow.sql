@@ -48,7 +48,7 @@ begin
   if p_pay is null or p_pay not in ('shop_cash', 'transfer_pickup', 'transfer_ship') then
     raise exception 'طريقة الدفع غير صحيحة';
   end if;
-  if length(p_name) not between 2 and 100 or length(p_notes) > 500 then
+  if length(p_name) > 100 or length(p_notes) > 500 then
     raise exception 'بيانات الطلب غير مكتملة';
   end if;
   if coalesce(p_phone, '') !~ '^01[0125][0-9]{8}$' then

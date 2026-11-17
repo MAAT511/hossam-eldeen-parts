@@ -251,7 +251,7 @@
     app.innerHTML = '<a class="back" href="#/cart">→ رجوع للسلة</a><h2>إتمام الطلب</h2>' +
       '<div class="panel">' + cartRows(false) + '<div class="row total"><span>الإجمالى</span><span>' + money(cartTotal()) + '</span></div></div>' +
       '<form class="panel" id="order" novalidate>' +
-      '<label class="field"><span>الاسم</span><input name="name" autocomplete="name"></label>' +
+      '<label class="field"><span>الاسم (اختيارى)</span><input name="name" autocomplete="name"></label>' +
       '<label class="field"><span>رقم الموبايل</span><input name="phone" type="tel" inputmode="numeric" placeholder="01xxxxxxxxx"></label>' +
       '<h3>طريقة الدفع والاستلام</h3><div class="pay">' +
       '<label><input type="radio" name="pay" value="shop_cash" checked><span>' + PAY.shop_cash + '</span></label>' +
@@ -276,7 +276,6 @@
       e.preventDefault();
       var f = e.target, err = document.getElementById('err');
       var d = { name: f.name.value.trim(), phone: f.phone.value.trim(), city: f.city.value.trim(), address: f.address.value.trim(), notes: f.notes.value.trim(), pay: f.pay.value };
-      if (d.name.length < 2) { err.textContent = 'من فضلك اكتب الاسم'; return; }
       if (!/^01[0125]\d{8}$/.test(d.phone)) { err.textContent = 'رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01'; return; }
       if (isShip(d.pay) && (!d.city || !d.address)) { err.textContent = 'اكتب المحافظة والعنوان بالتفصيل للشحن'; return; }
       if (!db) { viewDone(d, { id: 'T' + Date.now().toString().slice(-7) }); return; }
@@ -301,7 +300,7 @@
     var no = order.id;
     var lines = cartItems().map(function (it) { return '- ' + it.name + ' (' + it.sub + ') — ' + money(it.price); });
     var msg = 'طلب جديد رقم ' + no + '\n' + lines.join('\n') + '\nالإجمالى: ' + money(cartTotal()) +
-      '\n\nالاسم: ' + d.name + '\nالموبايل: ' + d.phone +
+      '\n' + (d.name ? '\nالاسم: ' + d.name : '') + '\nالموبايل: ' + d.phone +
       (isShip(d.pay) ? '\nالمحافظة: ' + d.city + '\nالعنوان: ' + d.address : '') +
       '\nطريقة الدفع: ' + PAY[d.pay] + (d.notes ? '\nملاحظات: ' + d.notes : '');
     var total = money(cartTotal());
