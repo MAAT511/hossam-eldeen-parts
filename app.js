@@ -218,7 +218,7 @@
   // ---------- إتمام الطلب ----------
   var PAY = {
     cod: 'الدفع عند الاستلام',
-    transfer: 'تحويل إنستاباى',
+    transfer: 'تحويل فودافون كاش / إنستاباى',
     pickup: 'الاستلام والدفع فى المحل',
   };
   // تحديث أسعار الاستعلامات اللى فى السلة من السيرفر (المحل ممكن يكون عدّل السعر بعد التفاوض)
@@ -252,7 +252,7 @@
       '<label class="field"><span>ملاحظات (اختيارى)</span><textarea name="notes" rows="2"></textarea></label>' +
       '<h3>طريقة الدفع</h3><div class="pay">' +
       '<label><input type="radio" name="pay" value="cod" checked><span>' + PAY.cod + '</span></label>' +
-      '<label><input type="radio" name="pay" value="transfer"><span>' + PAY.transfer + '<br><span class="meta">' + (SHOP.transferNumber ? 'حوّل على الرقم ' + esc(SHOP.transferNumber) + ' وابعت صورة الإيصال على الواتساب' : 'المحل هيبعت لك رقم التحويل على الواتساب بعد تأكيد الطلب') + '</span></span></label>' +
+      '<label><input type="radio" name="pay" value="transfer"><span>' + PAY.transfer + '<br><span class="meta">' + (SHOP.transferNumber ? 'حوّل على رقم <bdi dir="ltr">' + esc(SHOP.transferNumber) + '</bdi> (فودافون كاش أو إنستاباى) وابعت صورة الإيصال على الواتساب' : 'المحل هيبعت لك رقم التحويل على الواتساب بعد تأكيد الطلب') + '</span></span></label>' +
       '<label><input type="radio" name="pay" value="pickup"><span>' + PAY.pickup + '</span></label>' +
       '</div><div class="err" id="err"></div>' +
       '<button class="btn block" type="submit">تأكيد الطلب</button></form>';
