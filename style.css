@@ -183,9 +183,11 @@ html[dir="ltr"] .drawer { transform: translateX(-105%); }
 .olist { list-style: none; padding: 0; margin: 8px 0; }
 .olist li { border-bottom: 1px dashed var(--line); padding: 5px 0; font-size: 15px; }
 .olist li:last-child { border-bottom: 0; }
-.receipt { display: flex; align-items: center; gap: 10px; margin-top: 8px; text-decoration: none; color: var(--ink); }
-.receipt img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: #f3f4f6; }
-.receipt span { font-size: 13.5px; color: var(--muted); }
+.rbox { display: flex; align-items: center; gap: 10px; margin: 10px 0; padding: 11px 13px; border: 1px solid; border-radius: 12px; font-weight: 700; font-size: 14.5px; text-decoration: none; }
+.rbox.none { background: #fff5f5; border-color: #f0b4b0; color: #a32a20; justify-content: center; text-align: center; }
+.rbox.has { background: #f1f9f2; border-color: #a6d6ad; color: #1b6b2c; }
+.rbox.has img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 1px solid #a6d6ad; background: #fff; flex: 0 0 auto; }
+.rbox .rsub { font-weight: 400; font-size: 13px; color: var(--muted); }
 .code-box { margin-top: 10px; background: #eef4fb; border: 1px dashed #9cc2e8; border-radius: 12px; padding: 10px; text-align: center; }
 .code-box span { display: block; font-size: 13.5px; color: var(--muted); }
 .code-box strong { font-size: 30px; letter-spacing: 6px; color: #0b5cab; direction: ltr; display: block; }

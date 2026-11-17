@@ -20,10 +20,12 @@
   // صورة إيصال التحويل اللى العميل رفعها
   function receiptRow(o) {
     if (!isTransfer(o.pay_method)) return '';
-    if (!o.receipt_url) return '<div class="meta">العميل لسه ما رفعش صورة إيصال التحويل</div>';
-    return '<a class="receipt" target="_blank" rel="noopener" href="' + esc(o.receipt_url) + '">' +
+    // التنبيه الأحمر يبان على الطلبات اللى لسه شغالة بس
+    if (!o.receipt_url) return (o.status === 'new' || o.status === 'ready')
+      ? '<div class="rbox none">لم يتم إرسال إيصال التحويل</div>' : '';
+    return '<a class="rbox has" target="_blank" rel="noopener" href="' + esc(o.receipt_url) + '">' +
       '<img src="' + esc(o.receipt_url) + '" alt="إيصال التحويل">' +
-      '<span>صورة إيصال التحويل — اضغط للتكبير</span></a>';
+      '<span>تم إرسال إيصال التحويل<br><span class="rsub">اضغط لتكبير الصورة</span></span></a>';
   }
   function statusText(o) {
     if (o.status === 'new') return 'جديد — محتاج تأكيد';
@@ -71,7 +73,9 @@
   function loadAll() {
     Promise.all([
       db.from('parts').select('*').order('id', { ascending: false }),
-      db.from('orders').select('*').order('id', { ascending: false }).limit(200),
+      // كود الاستلام مش متقرى هنا أصلا: العميل بس اللى بيشوفه
+      db.from('orders').select('id,customer_name,phone,city,address,notes,pay_method,items,total,status,receipt_url,confirmed_at,created_at')
+        .order('id', { ascending: false }).limit(200),
       db.from('tour_photos').select('*').order('id'),
       db.from('inquiries').select('*').order('id', { ascending: false }).limit(300),
     ]).then(function (res) {
@@ -369,11 +373,9 @@
         '<div class="row"><span>' + esc(PAY[o.pay_method] || o.pay_method) + '</span><span class="total">' + money(o.total) + '</span></div>' +
         '<div class="actions">' +
         (o.status === 'new' ? '<button class="btn small" data-act="confirm">تأكيد الطلب</button>' : '') +
-        (o.status === 'ready' ? '<button class="btn small ghost" data-act="code">إظهار الكود</button>' +
-          '<button class="btn small" data-act="deliver">' + (isShip(o.pay_method) ? 'تم الشحن' : 'تم الاستلام') + '</button>' : '') +
+        (o.status === 'ready' ? '<button class="btn small" data-act="deliver">' + (isShip(o.pay_method) ? 'تم الشحن' : 'تم الاستلام') + '</button>' : '') +
         (o.status === 'new' || o.status === 'ready' ? '<button class="btn small ghost" data-act="cancel">إلغاء الطلب</button>' : '') +
         '</div>' +
-        '<div class="code-box" data-codebox hidden><span>كود الاستلام</span><strong>' + esc(o.pickup_code || '') + '</strong></div>' +
         '<div data-deliverbox hidden><label class="field"><span>اكتب الكود اللى العميل بيوريهولك</span>' +
         '<input data-code inputmode="numeric" maxlength="6" placeholder="------"></label>' +
         '<div class="actions"><button class="btn small" data-act="deliver-ok">تأكيد التسليم</button>' +
@@ -392,15 +394,10 @@
       }
       if (act('confirm')) act('confirm').addEventListener('click', function () {
         if (!confirm('تأكيد الطلب رقم ' + o.id + '؟ القطع هتتحجز ويتولد كود استلام للعميل.')) return;
-        run(this, 'admin_confirm_order', { p_id: o.id }, function (code) {
-          alert('تم التأكيد. كود الاستلام: ' + code);
+        run(this, 'admin_confirm_order', { p_id: o.id }, function () {
+          alert('تم التأكيد. كود الاستلام ظهر للعميل فى صفحة «طلباتى»، والمحل ما بيشوفوش.');
           loadAll();
         });
-      });
-      if (act('code')) act('code').addEventListener('click', function () {
-        var box = card.querySelector('[data-codebox]');
-        box.hidden = !box.hidden;
-        this.textContent = box.hidden ? 'إظهار الكود' : 'إخفاء الكود';
       });
       if (act('deliver')) act('deliver').addEventListener('click', function () {
         var box = card.querySelector('[data-deliverbox]');
