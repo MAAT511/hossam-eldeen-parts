@@ -16,6 +16,15 @@
     transfer_ship: 'تحويل فودافون كاش أو إنستاباى، ثم الشحن',
   };
   function isShip(pay) { return pay === 'transfer_ship'; }
+  function isTransfer(pay) { return pay === 'transfer_pickup' || pay === 'transfer_ship'; }
+  // صورة إيصال التحويل اللى العميل رفعها
+  function receiptRow(o) {
+    if (!isTransfer(o.pay_method)) return '';
+    if (!o.receipt_url) return '<div class="meta">العميل لسه ما رفعش صورة إيصال التحويل</div>';
+    return '<a class="receipt" target="_blank" rel="noopener" href="' + esc(o.receipt_url) + '">' +
+      '<img src="' + esc(o.receipt_url) + '" alt="إيصال التحويل">' +
+      '<span>صورة إيصال التحويل — اضغط للتكبير</span></a>';
+  }
   function statusText(o) {
     if (o.status === 'new') return 'جديد — محتاج تأكيد';
     if (o.status === 'cancelled') return 'ملغى';
@@ -352,6 +361,7 @@
         '<div>' + (o.customer_name ? esc(o.customer_name) + ' — ' : '') + '<a href="tel:' + esc(o.phone) + '">' + esc(o.phone) + '</a> · <a target="_blank" rel="noopener" href="' + wa + '">واتساب</a></div>' +
         (isShip(o.pay_method) ? '<div class="meta">' + esc(o.city) + ' — ' + esc(o.address) + '</div>' : '') +
         (o.notes ? '<div class="meta">ملاحظات: ' + esc(o.notes) + '</div>' : '') +
+        receiptRow(o) +
         '<ul>' + (o.items || []).map(function (it) {
           if (it.inquiry_id) return '<li>' + esc(it.name) + (it.question ? ' — ' + esc(it.question) : '') + ' (سعر متفق عليه، استعلام رقم ' + esc(it.inquiry_id) + ') — ' + money(it.price) + '</li>';
           return '<li>' + esc(it.name) + ' (' + esc(it.brand) + ' ' + esc(it.model) + ') كود P' + esc(it.id) + ' — ' + money(it.price) + '</li>';

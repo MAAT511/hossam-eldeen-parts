@@ -13,6 +13,38 @@
     });
   }
   function money(n) { return Number(n).toLocaleString('en-US') + ' ج.م'; }
+
+  // ---------- إيصال التحويل ----------
+  function needsReceipt(pay) { return pay === 'transfer_pickup' || pay === 'transfer_ship'; }
+  function shrink(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        var max = 1280, k = Math.min(1, max / Math.max(img.width, img.height));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error('تعذر تجهيز الصورة')); }, 'image/jpeg', 0.82);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('الملف ده مش صورة')); };
+      img.src = url;
+    });
+  }
+  // الصورة تترفع باسم عشوائى وتتربط بالطلب برمزه السرى المحفوظ على الموبايل
+  function sendReceipt(token, file) {
+    return shrink(file).then(function (blob) {
+      var path = Date.now() + '-' + Math.random().toString(36).slice(2, 10) + '.jpg';
+      return db.storage.from('receipts').upload(path, blob, { contentType: 'image/jpeg' }).then(function (up) {
+        if (up.error) throw up.error;
+        var url = db.storage.from('receipts').getPublicUrl(path).data.publicUrl;
+        return db.rpc('attach_receipt', { p_token: token, p_url: url }).then(function (res) {
+          if (res.error) throw res.error;
+          return url;
+        });
+      });
+    });
+  }
   function byId(id) { return PARTS.filter(function (p) { return p.id === id; })[0]; }
   function uniq(list) { return list.filter(function (v, i) { return v && list.indexOf(v) === i; }).sort(); }
   // صورة القطعة: لو مفيش صور يظهر الرمز المؤقت
@@ -264,14 +296,25 @@
       '<div id="ship-fields" hidden>' +
       '<label class="field"><span>المحافظة</span><input name="city"></label>' +
       '<label class="field"><span>العنوان بالتفصيل</span><textarea name="address" rows="2"></textarea></label></div>' +
+      '<div id="receipt-field" hidden><h3>صورة إيصال التحويل</h3>' +
+      '<label class="btn ghost block"><span id="receipt-name">اختر صورة الإيصال</span>' +
+      '<input name="receipt" type="file" accept="image/*" hidden></label>' +
+      '<p class="meta" style="margin-top:8px">لو لسه ما حوّلتش، كمّل الطلب دلوقتى وارفع الإيصال بعدين من صفحة طلباتى</p></div>' +
       '<label class="field"><span>ملاحظات (اختيارى)</span><textarea name="notes" rows="2"></textarea></label>' +
       '<div class="err" id="err"></div>' +
       '<button class="btn block" type="submit">تأكيد الطلب</button></form>';
     var form = document.getElementById('order');
-    // خانات العنوان تظهر فى حالة الشحن بس
-    function syncShip() { document.getElementById('ship-fields').hidden = !isShip(form.pay.value); }
-    form.querySelectorAll('[name=pay]').forEach(function (r) { r.addEventListener('change', syncShip); });
-    syncShip();
+    // خانات العنوان تظهر فى حالة الشحن بس، وخانة الإيصال مع التحويل بس
+    function syncPay() {
+      document.getElementById('ship-fields').hidden = !isShip(form.pay.value);
+      document.getElementById('receipt-field').hidden = !needsReceipt(form.pay.value);
+    }
+    form.querySelectorAll('[name=pay]').forEach(function (r) { r.addEventListener('change', syncPay); });
+    syncPay();
+    form.receipt.addEventListener('change', function () {
+      var f = this.files[0];
+      document.getElementById('receipt-name').textContent = f ? 'الصورة المختارة: ' + f.name.slice(-28) : 'اختر صورة الإيصال';
+    });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.target, err = document.getElementById('err');
@@ -292,21 +335,32 @@
         if (res.error) { btn.disabled = false; err.textContent = 'تعذر تسجيل الطلب: ' + res.error.message; return; }
         // الرمز السرى يتحفظ على الموبايل عشان العميل يتابع طلبه من «طلباتى»
         lsSet(ORDERS_KEY, lsGet(ORDERS_KEY, []).concat([res.data.token]).slice(-50));
-        viewDone(d, res.data);
+        var file = f.receipt && !document.getElementById('receipt-field').hidden ? f.receipt.files[0] : null;
+        if (!file) { viewDone(d, res.data); return; }
+        err.textContent = 'جارى رفع الإيصال...';
+        sendReceipt(res.data.token, file).then(function (url) {
+          res.data.receipt_url = url;
+          viewDone(d, res.data);
+        })['catch'](function () {
+          viewDone(d, res.data, 'الطلب اتسجل، بس صورة الإيصال ما اترفعتش. ارفعها من صفحة طلباتى.');
+        });
       });
     });
   }
-  function viewDone(d, order) {
+  function viewDone(d, order, warn) {
     var no = order.id;
     var lines = cartItems().map(function (it) { return '- ' + it.name + ' (' + it.sub + ') — ' + money(it.price); });
     var msg = 'طلب جديد رقم ' + no + '\n' + lines.join('\n') + '\nالإجمالى: ' + money(cartTotal()) +
       '\n' + (d.name ? '\nالاسم: ' + d.name : '') + '\nالموبايل: ' + d.phone +
       (isShip(d.pay) ? '\nالمحافظة: ' + d.city + '\nالعنوان: ' + d.address : '') +
-      '\nطريقة الدفع: ' + PAY[d.pay] + (d.notes ? '\nملاحظات: ' + d.notes : '');
+      '\nطريقة الدفع: ' + PAY[d.pay] + (d.notes ? '\nملاحظات: ' + d.notes : '') +
+      (order.receipt_url ? '\n\nصورة إيصال التحويل:\n' + order.receipt_url : '');
     var total = money(cartTotal());
     setCart([]);
     app.innerHTML = '<div class="panel" style="text-align:center"><div style="font-size:48px">✅</div>' +
       '<h2>طلبك اتسجل</h2><p>رقم الطلب: <strong>' + esc(no) + '</strong> — الإجمالى: <strong>' + total + '</strong></p>' +
+      (warn ? '<p class="err">' + esc(warn) + '</p>' : '') +
+      (order.receipt_url ? '<p class="meta">صورة الإيصال اتحفظت مع الطلب، والمحل هيشوفها عنده.</p>' : '') +
       '<p class="meta">ابعت الطلب للمحل على الواتساب عشان يأكده معاك' +
       (d.pay === 'shop_cash' ? '' : ' ويستلم التحويل') + '.</p>' +
       '<p class="meta">بعد ما المحل يأكد الطلب هيظهر لك كود الاستلام فى صفحة «طلباتى».</p>' +
@@ -406,8 +460,37 @@
             '<div style="margin-top:8px"><span class="tag' + cls + '">' + orderStatusText(o) + '</span></div>' +
             (o.pickup_code ? '<div class="code-box"><span>' + (isShip(o.pay_method) ? 'كود الطلب' : 'كود الاستلام — ورّيه للمحل') + '</span>' +
               '<strong>' + esc(o.pickup_code) + '</strong></div>' : '') +
+            receiptBox(o) +
             '</div>';
         }).join('') : '<div class="empty">لا توجد طلبات</div>');
+      wireReceipts();
+    });
+  }
+  // زرار رفع الإيصال يبان فى طلبات التحويل اللى لسه ما اتقفلتش
+  function receiptBox(o) {
+    if (!needsReceipt(o.pay_method)) return '';
+    var open = o.status === 'new' || o.status === 'ready';
+    var seen = o.receipt_url
+      ? '<div class="meta" style="margin-top:8px">صورة الإيصال اتبعتت للمحل · ' +
+        '<a target="_blank" rel="noopener" href="' + esc(o.receipt_url) + '">افتح الصورة</a></div>' : '';
+    if (!open) return seen;
+    return seen + '<label class="btn block' + (o.receipt_url ? ' ghost' : '') + '" style="margin-top:8px">' +
+      '<span>' + (o.receipt_url ? 'تغيير صورة الإيصال' : 'ارفع صورة إيصال التحويل') + '</span>' +
+      '<input type="file" accept="image/*" hidden data-up="' + esc(o.token) + '"></label>';
+  }
+  function wireReceipts() {
+    app.querySelectorAll('[data-up]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var file = this.files[0];
+        if (!file) return;
+        var txt = this.parentNode.querySelector('span'), old = txt.textContent;
+        txt.textContent = 'جارى رفع الإيصال...';
+        this.disabled = true;
+        sendReceipt(this.getAttribute('data-up'), file).then(function () { viewOrders(); })['catch'](function (e) {
+          txt.textContent = old;
+          alert('تعذر رفع الإيصال: ' + ((e && e.message) || e));
+        });
+      });
     });
   }
   function openInquiry(opt) {
