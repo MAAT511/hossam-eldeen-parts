@@ -792,8 +792,13 @@
       });
       document.querySelector('.demo-note').style.display = 'none';
       // صور «جولة داخل المحل» من لوحة الإدارة؛ لو الجدول لسه مش موجود تفضل الصور اللى فى config.js
-      return db.from('tour_photos').select('url').order('id').then(function (t) {
-        if (!t.error) SHOP.gallery = t.data.map(function (x) { return x.url; });
+      return db.from('tour_photos').select('*').order('id').then(function (t) {
+        if (!t.error) {
+          SHOP.gallery = t.data.map(function (x) { return x.url; });
+          // الكفر اللى المحل اختاره من لوحة الإدارة، وإلا يفضل اللى فى config.js
+          var c = t.data.filter(function (x) { return x.is_cover; })[0];
+          if (c) SHOP.cover = c.url;
+        }
         start();
       });
     });

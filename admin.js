@@ -181,7 +181,10 @@
       '<label class="btn block" style="cursor:pointer">＋ إضافة صور<input id="tfiles" type="file" accept="image/*" multiple hidden></label>' +
       '<div class="err" id="terr" style="margin:8px 0"></div>' +
       '<div class="thumbs big">' + (tour.length ? tour.map(function (t) {
-        return '<div class="thumb"><img src="' + esc(t.url) + '" alt=""><button type="button" data-id="' + t.id + '" title="حذف الصورة">×</button></div>';
+        return '<div class="thumb' + (t.is_cover ? ' is-cover' : '') + '"><img src="' + esc(t.url) + '" alt="">' +
+          '<button type="button" class="t-del" data-id="' + t.id + '" title="حذف الصورة">×</button>' +
+          '<button type="button" class="t-cov" data-cov="' + t.id + '" title="' + (t.is_cover ? 'شيلها من الكفر' : 'خليها كفر الموقع') + '">' +
+          (t.is_cover ? '★ الكفر' : '☆ كفر') + '</button></div>';
       }).join('') : '<div class="empty" style="width:100%">لا توجد صور حتى الآن</div>') + '</div></div>';
     document.getElementById('tfiles').addEventListener('change', function (e) {
       var files = Array.prototype.slice.call(e.target.files), err = document.getElementById('terr');
@@ -196,10 +199,25 @@
         err.textContent = 'تعذر رفع الصور: ' + (error && error.message ? error.message : 'خطأ غير معروف');
       });
     });
-    body.querySelectorAll('.thumb button').forEach(function (b) {
+    // اختيار الكفر: صورة واحدة بس هى اللى بتبقى كفر الموقع
+    body.querySelectorAll('.t-cov').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = Number(b.getAttribute('data-cov'));
+        var cur = tour.filter(function (x) { return x.is_cover; })[0];
+        var off = !!(cur && cur.id === id);
+        if (!confirm(off ? 'تشيل الصورة دى من كفر الموقع؟' : 'تخلى الصورة دى كفر الموقع؟')) return;
+        b.disabled = true;
+        db.rpc('admin_set_cover', { p_id: off ? null : id }).then(function (res) {
+          if (res.error) { fail('تعذر تغيير الكفر', res.error); b.disabled = false; return; }
+          tour.forEach(function (x) { x.is_cover = !off && x.id === id; });
+          render();
+        });
+      });
+    });
+    body.querySelectorAll('.thumb .t-del').forEach(function (b) {
       b.addEventListener('click', function () {
         var t = tour.filter(function (x) { return String(x.id) === b.getAttribute('data-id'); })[0];
-        if (!confirm('حذف الصورة دى من جولة المحل؟')) return;
+        if (!confirm(t.is_cover ? 'الصورة دى هى كفر الموقع. تحذفها؟ الكفر هيرجع للصورة الافتراضية.' : 'حذف الصورة دى من جولة المحل؟')) return;
         b.disabled = true;
         db.from('tour_photos').delete().eq('id', t.id).then(function (res) {
           if (res.error) { fail('تعذر الحذف', res.error); b.disabled = false; return; }
