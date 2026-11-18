@@ -604,11 +604,42 @@
   }
   function buildRailEnd() {
     var pics = railPics();
+    var offers = PARTS.filter(function (p) { return !p.sold; }).slice(0, 4);
+    var tour = (SHOP.gallery || []).slice(0, 6);
+    var st = openStatus();
+    var html = '';
+    if (pics.length) {
+      html += '<div class="sec-head"><h2>شوف كمان</h2></div>' +
+        '<a class="feat" href="#/"><span class="feat-pic"><img alt=""></span><span class="feat-body">' +
+        '<span class="feat-tag"></span><strong class="feat-t"></strong><span class="feat-s"></span></span></a>' +
+        '<div class="dots">' + pics.map(function (x, i) { return '<i data-i="' + i + '"></i>'; }).join('') + '</div>';
+    }
+    // كارت التواصل بيييجى بدرى عشان يفضل قدام الزبون من غير ما ينزل
+    html += '<div class="rcard">' +
+      (st ? '<span class="chip ' + (st.open ? 'chip-open' : 'chip-closed') + '">' + (st.open ? 'مفتوح الآن' : 'مغلق الآن') + '</span>' : '') +
+      (SHOP.hours ? '<p class="meta">' + esc(SHOP.hours) + '</p>' : '') +
+      '<a class="btn wa block"' + ext('https://wa.me/' + SHOP.whatsapp[0]) + '>' + ic('wa') + ' راسلنا على واتساب</a>' +
+      '<a class="btn ghost block" href="tel:' + esc(SHOP.phones[0].number) + '">' + ic('phone') + ' <bdi dir="ltr">' + esc(SHOP.phones[0].number) + '</bdi></a>' +
+      '</div>';
+    if (offers.length) {
+      html += '<div class="sec-head rsec"><h2>أحدث العروض</h2></div><div class="rlist">' +
+        offers.map(function (p) {
+          var sub = [p.brand, p.model].filter(Boolean).join(' ');
+          return '<a class="ritem" href="#/part/' + esc(p.id) + '">' +
+            '<span class="rthumb">' + (p.images && p.images[0] ? '<img loading="lazy" src="' + esc(p.images[0]) + '" alt="">' : '🔩') + '</span>' +
+            '<span class="rtext"><strong>' + esc(p.name) + '</strong>' +
+            (sub ? '<small>' + esc(sub) + '</small>' : '') +
+            '<b>' + money(p.price) + '</b></span></a>';
+        }).join('') + '</div>';
+    }
+    if (tour.length) {
+      html += '<div class="sec-head rsec"><h2>جولة داخل المحل</h2><a href="#/gallery">الكل ←</a></div>' +
+        '<div class="rgrid">' + tour.map(function (s) {
+          return '<a href="#/gallery"><img loading="lazy" src="' + esc(s) + '" alt="صورة من داخل المحل"></a>';
+        }).join('') + '</div>';
+    }
+    railEnd.innerHTML = html;
     if (!pics.length) return;
-    railEnd.innerHTML = '<div class="sec-head"><h2>شوف كمان</h2></div>' +
-      '<a class="feat" href="#/"><span class="feat-pic"><img alt=""></span><span class="feat-body">' +
-      '<span class="feat-tag"></span><strong class="feat-t"></strong><span class="feat-s"></span></span></a>' +
-      '<div class="dots">' + pics.map(function (x, i) { return '<i data-i="' + i + '"></i>'; }).join('') + '</div>';
     var link = railEnd.querySelector('.feat'), img = railEnd.querySelector('.feat-pic img');
     var tag = railEnd.querySelector('.feat-tag'), ttl = railEnd.querySelector('.feat-t'), sub = railEnd.querySelector('.feat-s');
     var dots = railEnd.querySelectorAll('.dots i');
