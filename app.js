@@ -160,6 +160,7 @@
     document.getElementById('count').textContent = 'عدد القطع: ' + list.length;
   }
   function viewHome() {
+    clearRails();
     var years = [];
     PARTS.forEach(function (p) { if (p.yearFrom) for (var y = p.yearFrom; y <= p.yearTo; y++) years.push(y); });
     var models = PARTS.filter(function (p) { return !filters.brand || p.brand === filters.brand; }).map(function (p) { return p.model; });
@@ -189,6 +190,7 @@
       });
     });
     document.getElementById('f-hideSold').addEventListener('change', function (e) { filters.hideSold = e.target.checked; renderList(); });
+    syncRails();
   }
 
   // ---------- صفحة القطعة ----------
@@ -577,10 +579,93 @@
     });
   }
 
+  // ---------- الأعمدة الجانبية على الشاشات الكبيرة ----------
+  var WIDE = window.matchMedia('(min-width: 1280px)');
+  var shell = document.getElementById('shell');
+  var railStart = document.getElementById('railStart');
+  var railEnd = document.getElementById('railEnd');
+  var railTimer = null;
+  function clearRails() {
+    if (railTimer) { clearInterval(railTimer); railTimer = null; }
+    railStart.innerHTML = '';
+    railEnd.innerHTML = '';
+    shell.classList.remove('wide');
+  }
+  // صور أحدث العروض وصور الجولة بتتجمع مع بعض وتتبدل لوحدها
+  function railPics() {
+    var list = [];
+    PARTS.filter(function (p) { return p.images && p.images.length; }).slice(0, 6).forEach(function (p) {
+      list.push({ src: p.images[0], tag: 'عرض', title: p.name + (p.brand ? ' — ' + p.brand : ''), sub: money(p.price), href: '#/part/' + p.id });
+    });
+    (SHOP.gallery || []).slice(0, 6).forEach(function (s) {
+      list.push({ src: s, tag: 'جولة', title: 'جولة داخل المحل', sub: 'اضغط لعرض كل الصور', href: '#/gallery' });
+    });
+    return list;
+  }
+  function buildRailEnd() {
+    var pics = railPics();
+    if (!pics.length) return;
+    railEnd.innerHTML = '<div class="sec-head"><h2>شوف كمان</h2></div>' +
+      '<a class="feat" href="#/"><span class="feat-pic"><img alt=""></span><span class="feat-body">' +
+      '<span class="feat-tag"></span><strong class="feat-t"></strong><span class="feat-s"></span></span></a>' +
+      '<div class="dots">' + pics.map(function (x, i) { return '<i data-i="' + i + '"></i>'; }).join('') + '</div>';
+    var link = railEnd.querySelector('.feat'), img = railEnd.querySelector('.feat-pic img');
+    var tag = railEnd.querySelector('.feat-tag'), ttl = railEnd.querySelector('.feat-t'), sub = railEnd.querySelector('.feat-s');
+    var dots = railEnd.querySelectorAll('.dots i');
+    var i = 0;
+    function show(n) {
+      i = (n + pics.length) % pics.length;
+      var p = pics[i];
+      img.style.opacity = '0';
+      setTimeout(function () { img.src = p.src; img.style.opacity = '1'; }, 150);
+      link.setAttribute('href', p.href);
+      tag.textContent = p.tag;
+      tag.className = 'feat-tag' + (p.tag === 'جولة' ? ' alt' : '');
+      ttl.textContent = p.title;
+      sub.textContent = p.sub;
+      dots.forEach(function (d, k) { d.className = k === i ? 'on' : ''; });
+    }
+    function play() { if (railTimer) clearInterval(railTimer); railTimer = setInterval(function () { show(i + 1); }, 4500); }
+    dots.forEach(function (d) { d.addEventListener('click', function () { show(Number(this.getAttribute('data-i'))); play(); }); });
+    show(0);
+    play();
+  }
+  // البحث والفلترة بينتقلوا للعمود اليمين، والصور تتبنى فى العمود الشمال
+  function syncRails() {
+    clearRails();
+    if (!WIDE.matches) return;
+    var head = document.getElementById('sec-search');
+    var box = app.querySelector('.filters');
+    if (!head || !box) return;
+    shell.classList.add('wide');
+    railStart.appendChild(head);
+    railStart.appendChild(box);
+    var det = box.querySelector('details');
+    if (det) det.open = true;
+    buildRailEnd();
+  }
+  // الصفحة تتبنى من أول وجديد بس لما نعدى حد الشاشة الكبيرة
+  var wasWide = WIDE.matches, wideTimer = null;
+  function onWide() {
+    if (WIDE.matches === wasWide) return;
+    wasWide = WIDE.matches;
+    route();
+  }
+  if (WIDE.addEventListener) WIDE.addEventListener('change', onWide);
+  else if (WIDE.addListener) WIDE.addListener(onWide);
+  function watchWidth() {
+    if (wideTimer) clearTimeout(wideTimer);
+    wideTimer = setTimeout(onWide, 200);
+  }
+  window.addEventListener('resize', watchWidth);
+  window.addEventListener('orientationchange', watchWidth);
+  if (window.ResizeObserver) new ResizeObserver(watchWidth).observe(document.documentElement);
+
   // ---------- التنقل ----------
   function route() {
     var h = location.hash.replace(/^#\/?/, '');
     window.scrollTo(0, 0);
+    clearRails();
     document.querySelectorAll('.modal, .lightbox').forEach(function (m) { m.remove(); });
     if (h === 'inquiries') { viewInquiries(); return; }
     if (h === 'orders') { viewOrders(); return; }
@@ -615,8 +700,12 @@
   function goSection(id) {
     closeMenu();
     var onHome = !location.hash.replace(/^#\/?/, '');
-    if (onHome) { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
-    else { pendingSection = id; location.hash = '#/'; }
+    if (onHome) {
+      var el = document.getElementById(id);
+      // لو القسم اتنقل للعمود الجانبى فهو ظاهر على طول، فنركز على خانة البحث بدل ما نلف الصفحة
+      if (el && railStart.contains(el)) { var q = document.getElementById('f-q'); if (q) q.focus(); return; }
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    } else { pendingSection = id; location.hash = '#/'; }
   }
   (function buildMenu() {
     var d = document.createElement('div');

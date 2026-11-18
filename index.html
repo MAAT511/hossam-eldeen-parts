@@ -25,7 +25,11 @@
   <a class="cart-btn" href="#/cart">🛒 السلة <span id="cartCount" class="badge">0</span></a>
 </header>
 <div class="demo-note">نسخة تجريبية — القطع والأسعار المعروضة وهمية</div>
-<main id="app"></main>
+<div class="shell" id="shell">
+  <aside class="rail" id="railStart" aria-label="البحث والفلترة"></aside>
+  <main id="app"></main>
+  <aside class="rail" id="railEnd" aria-label="صور العروض والمحل"></aside>
+</div>
 <footer id="footer"></footer>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
