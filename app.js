@@ -373,7 +373,9 @@
 
   // ---------- معرض المحل ----------
   function viewGallery() {
-    var pics = (SHOP.cover ? [SHOP.cover] : []).concat(SHOP.gallery || []);
+    // الكفر بيتزود فى أول المعرض، إلا لو هو أصلا واحدة من صور الجولة
+    var gal = SHOP.gallery || [];
+    var pics = (SHOP.cover && gal.indexOf(SHOP.cover) < 0 ? [SHOP.cover] : []).concat(gal);
     app.innerHTML = '<a class="back" href="#/">→ رجوع للرئيسية</a>' +
       '<div class="sec-head"><h2>جولة داخل المحل</h2></div>' +
       '<p class="meta" style="margin-top:-4px">صور من داخل ' + esc(SHOP.name) + ' — اضغط على أى صورة لتكبيرها</p>' +
