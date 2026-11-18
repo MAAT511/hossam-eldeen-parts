@@ -25,7 +25,8 @@ window.SHOP = {
   // رقم التحويل فودافون كاش / إنستاباى (لو فاضى العميل ياخده من الواتساب)
   transferNumber: '01092617807',
   // صورة الكفر أعلى الصفحة الرئيسية (سيبها فاضية لو مش عاوز كفر)
-  cover: 'https://vcubvevyiiodyfumhcde.supabase.co/storage/v1/object/public/parts/tour/1794856088245-9oxt8r.jpg',
+  // الكفر الحقيقى بيتحدد من لوحة الإدارة؛ ده احتياطى لو مفيش صورة متعلمة
+  cover: 'images/shop-1.jpg',
   // صور المحل اللى تظهر فى الصفحة الرئيسية
   gallery: ['images/shop-2.jpg', 'images/shop-3.jpg', 'images/shop-4.jpg', 'images/shop-5.jpg'],
   // ربط قاعدة البيانات Supabase (لو فاضيين الموقع يعرض القطع التجريبية من parts.js)
