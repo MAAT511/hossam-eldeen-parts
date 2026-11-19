@@ -179,6 +179,7 @@
     body.innerHTML = '<div class="panel"><h2>صور جولة داخل المحل</h2>' +
       '<p class="meta">الصور دى بتظهر للعملاء فى قسم «جولة داخل المحل». اختار صورة أو أكتر وهتترفع على طول.</p>' +
       '<label class="btn block" style="cursor:pointer">＋ إضافة صور<input id="tfiles" type="file" accept="image/*" multiple hidden></label>' +
+      '<button type="button" class="btn ghost block" id="tstamp" style="margin-top:8px">حط اسم المحل على الصور القديمة</button>' +
       '<div class="err" id="terr" style="margin:8px 0"></div>' +
       '<div class="thumbs big">' + (tour.length ? tour.map(function (t) {
         return '<div class="thumb' + (t.is_cover ? ' is-cover' : '') + '"><img src="' + esc(t.url) + '" alt="">' +
@@ -198,6 +199,49 @@
       }).catch(function (error) {
         err.textContent = 'تعذر رفع الصور: ' + (error && error.message ? error.message : 'خطأ غير معروف');
       });
+    });
+    document.getElementById('tstamp').addEventListener('click', function () {
+      var btn = this, err = document.getElementById('terr');
+      var jobs = [];
+      tour.forEach(function (t) { if (storagePath(t.url)) jobs.push({ kind: 'tour', id: t.id, url: t.url }); });
+      parts.forEach(function (p) {
+        (p.images || []).forEach(function (u, k) { if (storagePath(u)) jobs.push({ kind: 'part', id: p.id, i: k, url: u }); });
+      });
+      var skipped = tour.length + parts.reduce(function (s, p) { return s + (p.images || []).length; }, 0) - jobs.length;
+      if (!jobs.length) { err.textContent = 'مفيش صور مرفوعة محتاجة علامة'; return; }
+      if (!confirm('هيتحط اسم المحل ورقمه على ' + jobs.length + ' صورة. العملية دى مش بترجع. تكمل؟')) return;
+      btn.disabled = true;
+      var ok = 0, bad = 0;
+      (function next(i) {
+        if (i >= jobs.length) {
+          btn.disabled = false;
+          err.textContent = 'خلصت: ' + ok + ' صورة اتعملت' + (bad ? '، و' + bad + ' فشلت' : '') +
+            (skipped ? '، و' + skipped + ' صورة أصلية مش مرفوعة اتتخطت' : '');
+          loadAll();
+          return;
+        }
+        err.textContent = 'جارى المعالجة ' + (i + 1) + ' من ' + jobs.length + '...';
+        var j = jobs[i];
+        restamp(j.url).then(function (r) {
+          if (!r) return;
+          if (j.kind === 'tour') {
+            return db.from('tour_photos').update({ url: r.url }).eq('id', j.id).then(function (up) {
+              if (up.error) throw up.error;
+              db.storage.from('parts').remove([r.old]);
+              ok++;
+            });
+          }
+          var p = parts.filter(function (x) { return x.id === j.id; })[0];
+          var imgs = (p.images || []).slice();
+          imgs[j.i] = r.url;
+          return db.from('parts').update({ images: imgs }).eq('id', j.id).then(function (up) {
+            if (up.error) throw up.error;
+            p.images = imgs;
+            db.storage.from('parts').remove([r.old]);
+            ok++;
+          });
+        }).then(function () { next(i + 1); })['catch'](function () { bad++; next(i + 1); });
+      })(0);
     });
     // اختيار الكفر: صورة واحدة بس هى اللى بتبقى كفر الموقع
     body.querySelectorAll('.t-cov').forEach(function (b) {
@@ -285,19 +329,91 @@
 
   // ---------- نموذج القطعة ----------
   // تصغير الصورة قبل الرفع عشان الموقع يفضل سريع
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  // علامة مائية: الشعار واسم المحل على اليمين، والرقم على الشمال
+  function stamp(c) {
+    var ctx = c.getContext('2d'), w = c.width, h = c.height;
+    var fs = Math.max(12, Math.round(w * 0.038));
+    var pad = Math.round(fs * 0.75);
+    var band = Math.round(fs * 3.4);
+    var g = ctx.createLinearGradient(0, h - band, 0, h);
+    g.addColorStop(0, 'rgba(10,14,20,0)');
+    g.addColorStop(1, 'rgba(10,14,20,.62)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, h - band, w, band);
+    var right = w - pad;
+    if (logoImg) {
+      var ls = Math.round(fs * 1.7);
+      var lx = right - ls, ly = Math.round(h - pad - fs * 0.34 - ls / 2);
+      ctx.save();
+      roundRect(ctx, lx, ly, ls, ls, Math.round(ls * 0.24));
+      ctx.clip();
+      ctx.drawImage(logoImg, lx, ly, ls, ls);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,.55)';
+      ctx.lineWidth = Math.max(1, Math.round(ls * 0.035));
+      roundRect(ctx, lx, ly, ls, ls, Math.round(ls * 0.24));
+      ctx.stroke();
+      right = lx - Math.round(fs * 0.42);
+    }
+    ctx.textBaseline = 'alphabetic';
+    ctx.shadowColor = 'rgba(0,0,0,.55)';
+    ctx.shadowBlur = Math.round(fs * 0.35);
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.font = '700 ' + fs + 'px Cairo, Tahoma, "Segoe UI", sans-serif';
+    ctx.fillText(SHOP.shortName || SHOP.name, right, h - pad);
+    var phone = SHOP.phones && SHOP.phones[0] ? SHOP.phones[0].number : '';
+    if (phone) {
+      ctx.direction = 'ltr';
+      ctx.textAlign = 'left';
+      ctx.font = '700 ' + Math.round(fs * 0.86) + 'px Tahoma, "Segoe UI", sans-serif';
+      ctx.fillText(phone, pad, h - pad);
+    }
+    ctx.shadowBlur = 0;
+  }
+  // الخط العربى والشعار لازم يبقوا جاهزين قبل ما نرسم بيهم على الصورة
+  var logoImg = null;
+  function loadLogo() {
+    if (logoImg) return Promise.resolve(logoImg);
+    return new Promise(function (resolve) {
+      var im = new Image();
+      im.onload = function () { logoImg = im; resolve(im); };
+      im.onerror = function () { resolve(null); };
+      im.src = 'images/logo.jpg';
+    });
+  }
+  function fontsReady() {
+    var f;
+    try { f = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(); }
+    catch (e) { f = Promise.resolve(); }
+    return Promise.all([f, loadLogo()]);
+  }
   function shrink(file) {
-    return new Promise(function (resolve, reject) {
-      var img = new Image(), url = URL.createObjectURL(file);
-      img.onload = function () {
-        var max = 1280, k = Math.min(1, max / Math.max(img.width, img.height));
-        var c = document.createElement('canvas');
-        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        c.toBlob(function (b) { b ? resolve(b) : reject(new Error('تعذر تجهيز الصورة')); }, 'image/jpeg', 0.82);
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('الملف ده مش صورة')); };
-      img.src = url;
+    return fontsReady().then(function () {
+      return new Promise(function (resolve, reject) {
+        var img = new Image(), url = URL.createObjectURL(file);
+        img.onload = function () {
+          var max = 1280, k = Math.min(1, max / Math.max(img.width, img.height));
+          var c = document.createElement('canvas');
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          stamp(c);
+          c.toBlob(function (b) { b ? resolve(b) : reject(new Error('تعذر تجهيز الصورة')); }, 'image/jpeg', 0.82);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('الملف ده مش صورة')); };
+        img.src = url;
+      });
     });
   }
   function uploadOne(file, prefix) {
@@ -306,6 +422,34 @@
       return db.storage.from('parts').upload(path, blob, { contentType: 'image/jpeg' }).then(function (res) {
         if (res.error) throw res.error;
         return db.storage.from('parts').getPublicUrl(path).data.publicUrl;
+      });
+    });
+  }
+  // صورة قديمة مرفوعة: تتسحب وتتختم وتترفع فى مكان جديد، والقديمة تتمسح بعد ما الجديدة تتسجل
+  function restamp(url) {
+    var path = storagePath(url);
+    if (!path) return Promise.resolve(null);
+    return fontsReady().then(function () {
+      return new Promise(function (resolve, reject) {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () {
+          var max = 1280, k = Math.min(1, max / Math.max(img.width, img.height));
+          var c = document.createElement('canvas');
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          stamp(c);
+          c.toBlob(function (b) { b ? resolve(b) : reject(new Error('تعذر تجهيز الصورة')); }, 'image/jpeg', 0.82);
+        };
+        img.onerror = function () { reject(new Error('تعذر تحميل الصورة')); };
+        img.src = url + (url.indexOf('?') < 0 ? '?' : '&') + 'r=' + Date.now();
+      });
+    }).then(function (blob) {
+      var pre = path.lastIndexOf('/') > -1 ? path.slice(0, path.lastIndexOf('/') + 1) : '';
+      var np = pre + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg';
+      return db.storage.from('parts').upload(np, blob, { contentType: 'image/jpeg' }).then(function (res) {
+        if (res.error) throw res.error;
+        return { url: db.storage.from('parts').getPublicUrl(np).data.publicUrl, old: path };
       });
     });
   }

@@ -770,6 +770,13 @@
     '<a class="q-fb"' + ext(SHOP.facebook) + '>' + ic('fb') + ' فيسبوك</a>' +
     SHOP.whatsapp.map(function (n) { return '<a class="q-wa"' + ext('https://wa.me/' + n) + '>' + ic('wa') + ' <bdi dir="ltr">0' + esc(n.slice(2)) + '</bdi></a>'; }).join('') +
     '</div></div>';
+  // الصور مش بتتحفظ بكليك يمين ولا بضغطة طويلة ولا بالسحب
+  document.addEventListener('contextmenu', function (e) {
+    if (e.target && e.target.tagName === 'IMG') e.preventDefault();
+  });
+  document.addEventListener('dragstart', function (e) {
+    if (e.target && e.target.tagName === 'IMG') e.preventDefault();
+  });
   function start() {
     setCart(getCart());
     window.addEventListener('hashchange', route);
